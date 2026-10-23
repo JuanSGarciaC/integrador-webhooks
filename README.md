@@ -126,6 +126,3 @@ Detalle y alternativas descartadas en [`docs/architecture.md`](docs/architecture
 
 ## Cómo se construyó
 Con asistentes de IA (Claude Code). Yo revisé el diseño, ejecuté las pruebas y la medición, y soy responsable de explicar cada decisión. Diseño original: [`docs/superpowers/specs`](docs/superpowers/specs); plan: [`docs/superpowers/plans`](docs/superpowers/plans).
-
-## Pendiente
-`docker-compose.yml` (opcional).
