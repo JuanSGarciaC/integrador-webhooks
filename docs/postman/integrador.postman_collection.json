@@ -1,0 +1,81 @@
+{
+  "info": {
+    "name": "Integrador de webhooks",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "baseUrl", "value": "http://127.0.0.1:8000"},
+    {"key": "secret", "value": "newman-secret"}
+  ],
+  "item": [
+    {"name": "Health", "request": {"method": "GET", "url": "{{baseUrl}}/health"},
+     "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+       "pm.test('200 ok', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().status).to.eql('ok'); });"]}}]},
+    {"name": "Webhook válido -> 202",
+     "event": [
+       {"listen": "prerequest", "script": {"type": "text/javascript", "exec": [
+         "const id = 'newman-' + Date.now();",
+         "pm.collectionVariables.set('deliveryId', id);",
+         "const body = JSON.stringify({zen: 'Keep it logically awesome.', sender: {login: 'newman'}});",
+         "pm.collectionVariables.set('body', body);",
+         "pm.collectionVariables.set('sig', 'sha256=' + CryptoJS.HmacSHA256(body, pm.collectionVariables.get('secret')).toString(CryptoJS.enc.Hex));"]}},
+       {"listen": "test", "script": {"type": "text/javascript", "exec": [
+         "pm.test('202 aceptado', () => pm.response.to.have.status(202));",
+         "pm.collectionVariables.set('eventId', pm.response.json().id);"]}}],
+     "request": {"method": "POST", "url": "{{baseUrl}}/webhooks/github",
+       "header": [
+         {"key": "Content-Type", "value": "application/json"},
+         {"key": "X-GitHub-Event", "value": "ping"},
+         {"key": "X-GitHub-Delivery", "value": "{{deliveryId}}"},
+         {"key": "X-Hub-Signature-256", "value": "{{sig}}"}],
+       "body": {"mode": "raw", "raw": "{{body}}"}}},
+    {"name": "Mismo delivery id -> 200 duplicado",
+     "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+       "pm.test('200 duplicado', () => pm.response.to.have.status(200));"]}}],
+     "request": {"method": "POST", "url": "{{baseUrl}}/webhooks/github",
+       "header": [
+         {"key": "Content-Type", "value": "application/json"},
+         {"key": "X-GitHub-Event", "value": "ping"},
+         {"key": "X-GitHub-Delivery", "value": "{{deliveryId}}"},
+         {"key": "X-Hub-Signature-256", "value": "{{sig}}"}],
+       "body": {"mode": "raw", "raw": "{{body}}"}}},
+    {"name": "Firma inválida -> 401",
+     "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+       "pm.test('401', () => pm.response.to.have.status(401));"]}}],
+     "request": {"method": "POST", "url": "{{baseUrl}}/webhooks/github",
+       "header": [
+         {"key": "Content-Type", "value": "application/json"},
+         {"key": "X-GitHub-Event", "value": "ping"},
+         {"key": "X-GitHub-Delivery", "value": "x"},
+         {"key": "X-Hub-Signature-256", "value": "sha256=00"}],
+       "body": {"mode": "raw", "raw": "{}"}}},
+    {"name": "Listar eventos",
+     "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+       "pm.test('200 con total', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().total).to.be.at.least(1); });"]}}],
+     "request": {"method": "GET", "url": "{{baseUrl}}/api/events?limit=5"}},
+    {"name": "Parámetros inválidos -> 422",
+     "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+       "pm.test('422', () => pm.response.to.have.status(422));"]}}],
+     "request": {"method": "GET", "url": "{{baseUrl}}/api/events?limit=0"}},
+    {"name": "Detalle del evento",
+     "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+       "pm.test('200 con historial', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().attempt_history).to.be.an('array'); });"]}}],
+     "request": {"method": "GET", "url": "{{baseUrl}}/api/events/{{eventId}}"}},
+    {"name": "Detalle inexistente -> 404",
+     "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+       "pm.test('404', () => pm.response.to.have.status(404));"]}}],
+     "request": {"method": "GET", "url": "{{baseUrl}}/api/events/no-existe"}},
+    {"name": "Replay de evento no dead -> 409",
+     "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+       "pm.test('409', () => pm.response.to.have.status(409));"]}}],
+     "request": {"method": "POST", "url": "{{baseUrl}}/api/events/{{eventId}}/replay"}},
+    {"name": "Replay inexistente -> 404",
+     "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+       "pm.test('404', () => pm.response.to.have.status(404));"]}}],
+     "request": {"method": "POST", "url": "{{baseUrl}}/api/events/no-existe/replay"}},
+    {"name": "Stats",
+     "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+       "pm.test('200 con by_status', () => { pm.response.to.have.status(200); pm.expect(pm.response.json()).to.have.property('by_status'); });"]}}],
+     "request": {"method": "GET", "url": "{{baseUrl}}/api/stats"}}
+  ]
+}

@@ -1,0 +1,45 @@
+import { useState } from "react";
+import { api } from "../api";
+import { ErrorNote, fmtDate, useFetch } from "./shared";
+
+export function DeadLetters() {
+  const { data, error, reload } = useFetch(() => api.events({ status: "dead", limit: 100 }), [], 3000);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function replay(id: string) {
+    if (!window.confirm("¿Devolver este evento a la cola para reprocesarlo?")) return;
+    try {
+      await api.replay(id);
+      setMsg("Evento devuelto a la cola.");
+    } catch (e) {
+      setMsg((e as Error).message);
+    }
+    reload();
+  }
+
+  return (
+    <section aria-labelledby="t">
+      <h2 id="t">Eventos fallidos</h2>
+      <p>Eventos que agotaron intentos o recibieron un error permanente (4xx). Revísalos según el runbook.</p>
+      <p role="status" className="note">{msg}</p>
+      {error && <ErrorNote message={error} />}
+      {data && data.items.length === 0 && <p className="empty">No hay eventos fallidos. 🎉 Todo lo recibido se entregó o está en curso.</p>}
+      {data && data.items.length > 0 && (
+        <table>
+          <thead><tr><th>Recibido</th><th>Tipo</th><th>Intentos</th><th>Último error</th><th>Acción</th></tr></thead>
+          <tbody>
+            {data.items.map((e) => (
+              <tr key={e.id}>
+                <td><a href={`#/events/${e.id}`}>{fmtDate(e.received_at)}</a></td>
+                <td>{e.event_type}</td>
+                <td>{e.attempts}</td>
+                <td>{e.last_error ?? "—"}</td>
+                <td><button onClick={() => replay(e.id)}>Reprocesar</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
