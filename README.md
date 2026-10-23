@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/JuanSGarciaC/integrador-webhooks/actions/workflows/ci.yml/badge.svg)](https://github.com/JuanSGarciaC/integrador-webhooks/actions/workflows/ci.yml)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
+![Licencia MIT](https://img.shields.io/badge/licencia-MIT-green)
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688)
 ![React](https://img.shields.io/badge/React-panel-61dafb)
 
@@ -126,3 +127,6 @@ Detalle y alternativas descartadas en [`docs/architecture.md`](docs/architecture
 
 ## Cómo se construyó
 Con asistentes de IA (Claude Code). Yo revisé el diseño, ejecuté las pruebas y la medición, y soy responsable de explicar cada decisión. Diseño original: [`docs/superpowers/specs`](docs/superpowers/specs); plan: [`docs/superpowers/plans`](docs/superpowers/plans).
+
+## Licencia
+[MIT](LICENSE) © 2026 JuanSGarciaC
