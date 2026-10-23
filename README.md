@@ -126,7 +126,7 @@ Detalle y alternativas descartadas en [`docs/architecture.md`](docs/architecture
 [`requirements`](docs/requirements.md) · [`architecture`](docs/architecture.md) · [`data-dictionary`](docs/data-dictionary.md) · [`test-plan`](docs/test-plan.md) · [`runbook`](docs/runbook.md) · [`risks`](docs/risks.md) · [`prueba real`](docs/prueba-real-github.md) · [`openapi.json`](docs/openapi.json)
 
 ## Cómo se construyó
-Con asistentes de IA (Claude Code). Yo revisé el diseño, ejecuté las pruebas y la medición, y soy responsable de explicar cada decisión. Diseño original: [`docs/superpowers/specs`](docs/superpowers/specs); plan: [`docs/superpowers/plans`](docs/superpowers/plans).
+Con asistentes de IA. Yo revisé el diseño, ejecuté las pruebas y la medición 
 
 ## Licencia
 [MIT](LICENSE) © 2026 JuanSGarciaC
