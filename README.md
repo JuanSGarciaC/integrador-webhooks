@@ -1,5 +1,7 @@
 # Integrador de webhooks con reintentos y reproceso
 
+[![CI](https://github.com/JuanSGarciaC/integrador-webhooks/actions/workflows/ci.yml/badge.svg)](https://github.com/JuanSGarciaC/integrador-webhooks/actions/workflows/ci.yml)
+
 Servicio que **recibe webhooks de GitHub**, verifica la firma, **guarda** el evento, responde rápido (`202`) y lo **entrega a otro servicio** desde un worker aparte. Si la entrega falla, **reintenta con espera exponencial y jitter**; si se agotan los intentos, el evento queda en una cola de fallidos que se **reprocesa desde un panel**.
 
 > Proyecto personal de portafolio con un **destino simulado**. No está probado en producción. Garantiza **entrega al menos una vez** con consumidor idempotente (no *exactly-once*).
@@ -31,7 +33,7 @@ Para ver reintentos, arranca el destino con `FAILURE_RATE=0.5`. Pruebas: `cd bac
 Detalle y alternativas descartadas en [`docs/architecture.md`](docs/architecture.md). En corto: la base de datos hace de cola (*outbox*), `Idempotency-Key` = id del evento, solo se reintenta `5xx`/`429`/timeout, un `4xx` va directo a `dead`, un solo worker (con bloqueo que vence para recuperar caídas). **No** garantiza orden entre eventos, el panel **no tiene autenticación** (solo local) y SQLite no escala a varios workers.
 
 ## Pruebas y cobertura
-47 pruebas (`pytest`), **92 % de cobertura de línea** medida con `pytest-cov` el 2026-10-23 (`app/main.py` y el bucle `run_forever` del worker no tienen prueba unitaria; se verificaron a mano de extremo a extremo). Colección Postman: 11 aserciones, 0 fallos con Newman en local. El `ci.yml` ejecuta pytest, comprueba `openapi.json`, compila el panel y corre Newman; **aún no se ha ejecutado en GitHub** (el repositorio no está publicado), así que no hay distintivo de CI.
+47 pruebas (`pytest`), **92 % de cobertura de línea** medida con `pytest-cov` el 2026-10-23 (`app/main.py` y el bucle `run_forever` del worker no tienen prueba unitaria; se verificaron a mano de extremo a extremo). Colección Postman: 11 aserciones, 0 fallos con Newman en local. El `ci.yml` ejecuta pytest, comprueba `openapi.json`, compila el panel y corre Newman; los tres jobs (backend, contract, frontend) pasaron en GitHub Actions el 2026-10-23.
 
 ## Medición con fallos inyectados
 Generada por `backend/scripts/simulate_load.py` (N = 200 por escenario, semilla 42). Equipo: Windows 11, Python 3.12.10. Configuración: base 2 s, factor 2, tope 300 s, jitter completo, 6 intentos máx. **Destino simulado**; la mitad de los fallos son «ack perdido» (el destino aplica el efecto y responde 503), que es lo que ejercita la idempotencia.
@@ -55,4 +57,4 @@ Con asistentes de IA (Claude Code). Yo revisé el diseño, ejecuté las pruebas 
 [`requirements`](docs/requirements.md) · [`architecture`](docs/architecture.md) · [`data-dictionary`](docs/data-dictionary.md) · [`test-plan`](docs/test-plan.md) · [`runbook`](docs/runbook.md) · [`risks`](docs/risks.md) · [`openapi.json`](docs/openapi.json)
 
 ## Pendiente (no hecho)
-Prueba real con un repositorio de GitHub y túnel; `docker-compose.yml`; capturas del panel; publicación en GitHub.
+Prueba real con un repositorio de GitHub y túnel; `docker-compose.yml`; capturas del panel.
