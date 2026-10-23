@@ -53,8 +53,11 @@ Cómo leerla (limitaciones):
 ## Cómo se construyó
 Con asistentes de IA (Claude Code). Yo revisé el diseño, ejecuté las pruebas y la medición, y soy responsable de explicar cada decisión. Diseño original: [`docs/superpowers/specs`](docs/superpowers/specs); plan: [`docs/superpowers/plans`](docs/superpowers/plans).
 
+## Prueba real con GitHub
+Hecha el 2026-10-23 con un repositorio de pruebas propio y un túnel temporal: las 6 entregas reales (`ping`, `issues`, 3 `push`, `pull_request`) se aceptaron con `202` y un *Redeliver* se respondió `200` sin crear un registro nuevo. Guía y resultado en [`docs/prueba-real-github.md`](docs/prueba-real-github.md). El túnel expone solo `POST /webhooks/github` mediante `app/gateway.py`.
+
 ## Documentación
 [`requirements`](docs/requirements.md) · [`architecture`](docs/architecture.md) · [`data-dictionary`](docs/data-dictionary.md) · [`test-plan`](docs/test-plan.md) · [`runbook`](docs/runbook.md) · [`risks`](docs/risks.md) · [`openapi.json`](docs/openapi.json)
 
 ## Pendiente (no hecho)
-Prueba real con un repositorio de GitHub y túnel; `docker-compose.yml`; capturas del panel.
+`docker-compose.yml`; capturas del panel.
