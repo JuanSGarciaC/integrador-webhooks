@@ -25,4 +25,4 @@ Revisa que `WEBHOOK_SECRET` coincida con el secreto del webhook en GitHub y que 
 3. **Rotar el token admin** (si se filtró): *Environment → ADMIN_TOKEN → Generate* y redeploy. Los paneles abiertos pierden el rol admin al recargar.
 4. **«demo llena» (`429`):** todos los eventos guardados siguen en curso. Se libera sola cuando terminan o cuando el servicio se duerme.
 5. **El contenedor se reinicia en bucle:** revisa los logs; si dice `DEMO_MODE exige WEBHOOK_SECRET y ADMIN_TOKEN`, faltan esas variables.
-6. **Tras el primer despliegue, verificar el límite por IP** (pendiente: no se puede comprobar sin la demo en marcha): enviar 11 simulaciones con `-H "True-Client-IP: <IP aleatoria distinta cada vez>"`. Si la 11.ª no da `429`, Render deja pasar la cabecera del cliente: cambiar `CLIENT_IP_HEADER` a `CF-Connecting-IP` y repetir. Anotar el resultado en `docs/test-plan.md`.
+6. **Límite por IP** (verificado el 2026-11-01, ver `test-plan.md`): enviar 11 simulaciones con `-H "True-Client-IP: <IP aleatoria distinta cada vez>"` debe acabar en `429`. Si algún día deja de hacerlo, cambiar `CLIENT_IP_HEADER` a `CF-Connecting-IP`.
