@@ -12,7 +12,7 @@ Servicio que **recibe webhooks de GitHub**, comprueba que son auténticos, **los
 
 ![Flujo en vivo: se simula un webhook, falla dos veces con 503 y se entrega al tercer intento](docs/screenshots/demo-flujo.gif)
 
-*Grabado de la demo real (contenedor local): «Falla 2 veces y se recupera» → dos `503` → espera con backoff y jitter → `200` y Entregado. Datos ficticios contra el destino simulado.*
+*Grabado en la [demo pública](https://integrador-webhooks-demo.onrender.com) el 2026-11-01: «Falla 2 veces y se recupera» → dos `503` → espera con backoff y jitter → `200` y Entregado. Datos ficticios contra el destino simulado.*
 
 ## Demo en vivo
 
@@ -64,7 +64,7 @@ flowchart LR
 | **Fallidos como visitante**: reprocesar bloqueado | **Fallidos como admin**: reprocesar habilitado |
 | ![Fallidos sin token: botón Requiere admin deshabilitado](docs/screenshots/06-fallidos-visitante-light.png) | ![Fallidos con token admin: botón Reprocesar](docs/screenshots/05-fallidos-admin-light.png) |
 
-Sin librerías de UI. Tema claro y oscuro según el sistema. El estado se comunica con icono y texto, no solo con color, y el foco es visible. Las capturas se regeneran con `frontend/scripts/capture.mjs` contra el contenedor (datos sembrados con el simulador).
+Sin librerías de UI. Tema claro y oscuro según el sistema. El estado se comunica con icono y texto, no solo con color, y el foco es visible. Capturas tomadas en la demo pública el 2026-11-01 con `frontend/scripts/capture.mjs` (datos sembrados con el simulador). La de «Fallidos como admin» es del contenedor local, porque el token admin de producción no sale de Render.
 
 ## Ejecutarlo (Windows / PowerShell)
 
