@@ -62,3 +62,9 @@ def load_settings() -> Settings:
         poll_interval_seconds=float(e("POLL_INTERVAL_SECONDS", d.poll_interval_seconds)),
         batch_size=int(e("BATCH_SIZE", d.batch_size)),
     )
+
+
+def check_demo_settings(settings: Settings) -> None:
+    """La demo pública no arranca sin secretos: evita exponerla con firma o admin vacíos."""
+    if settings.demo_mode and not (settings.webhook_secret and settings.admin_token):
+        raise SystemExit("DEMO_MODE exige WEBHOOK_SECRET y ADMIN_TOKEN")

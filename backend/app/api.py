@@ -2,12 +2,14 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import uuid
 from typing import Callable
 
 from fastapi import APIRouter, Depends, FastAPI, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import sessionmaker
 
 from app import repository
@@ -148,4 +150,7 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
                                        "x-hub-signature-256": sig})
 
     app.include_router(router)
+    if settings.demo_mode and settings.static_dir and os.path.isdir(settings.static_dir):
+        # Se monta al final: las rutas de la API tienen prioridad sobre los estáticos.
+        app.mount("/", StaticFiles(directory=settings.static_dir, html=True), name="panel")
     return app
