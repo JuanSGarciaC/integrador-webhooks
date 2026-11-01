@@ -19,6 +19,19 @@ export function StatusBadge({ status }: { status: Status }) {
   );
 }
 
+/** Código HTTP como ficha: verde 2xx, ámbar si se reintenta (429/5xx/sin respuesta), rojo 4xx. */
+export function HttpCode({ status }: { status: number | null }) {
+  // «HTTP» solo para lectores de pantalla: visualmente basta el número en la ficha.
+  return status === null
+    ? <span className={`code ${outcome(status)}`}><span className="sr-only">sin respuesta, </span>timeout</span>
+    : <span className={`code ${outcome(status)}`}><span className="sr-only">HTTP </span>{status}</span>;
+}
+
+export const outcome = (status: number | null) =>
+  status === null || status === 429 || status >= 500 ? "retry" : status < 300 ? "ok" : "fail";
+
+export const fmtSeconds = (s: number) => (s < 60 ? `${s.toFixed(1)} s` : `${(s / 60).toFixed(1)} min`);
+
 export const fmtDate = (iso: string | null) =>
   iso ? new Date(iso + "Z").toLocaleString() : "—"; // el backend guarda UTC sin zona
 
