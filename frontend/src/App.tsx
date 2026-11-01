@@ -42,7 +42,17 @@ export default function App() {
     <>
       <a className="skip" href="#main">Saltar al contenido</a>
       <header>
-        <h1>Integrador de webhooks</h1>
+        <a className="brand" href="#/">
+          <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true">
+            <rect width="32" height="32" rx="8" fill="var(--accent)" />
+            <path d="M8 16h12m-4-6 6 6-6 6" stroke="var(--bg)" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>
+            <h1>Integrador de webhooks</h1>
+            <small>HMAC · reintentos con backoff · reproceso</small>
+          </span>
+        </a>
+        {demo && <span className="pill">Demo pública · datos ficticios</span>}
         <nav aria-label="Principal">
           {NAV.filter(([key]) => demo || key !== "simulate").map(([key, label]) => (
             <a key={key} href={`#/${key}`} aria-current={section === key ? "page" : undefined}>

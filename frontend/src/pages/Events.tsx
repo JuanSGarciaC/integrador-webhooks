@@ -19,6 +19,7 @@ export function Events() {
   return (
     <section aria-labelledby="t">
       <h2 id="t">Eventos</h2>
+      <p className="lead">Todo lo recibido, del más reciente al más antiguo. Se actualiza cada 3 s.</p>
       <div className="filters">
         <label>Estado
           <select value={status} onChange={(e) => { setStatus(e.target.value); setOffset(0); }}>
@@ -36,7 +37,7 @@ export function Events() {
       {error && <ErrorNote message={error} />}
       {data && data.items.length === 0 && (
         <p className="empty">
-          Aún no hay eventos. Envía uno con <code>python scripts/send_webhook.py</code>.
+          Aún no hay eventos. Crea uno desde «Simular» (demo) o con <code>python scripts/send_webhook.py</code>.
         </p>
       )}
       {data && data.items.length > 0 && (
