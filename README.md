@@ -16,7 +16,9 @@ Servicio que **recibe webhooks de GitHub**, comprueba que son auténticos, **los
 
 ## Demo en vivo
 
-La demo pública corre en un solo contenedor (API + worker + destino simulado + panel). Todavía no está desplegada: el blueprint está en [`render.yaml`](render.yaml).
+**👉 [integrador-webhooks-demo.onrender.com](https://integrador-webhooks-demo.onrender.com)** · API interactiva en [`/docs`](https://integrador-webhooks-demo.onrender.com/docs)
+
+La demo pública corre en un solo contenedor (API + worker + destino simulado + panel) en Render, con el blueprint [`render.yaml`](render.yaml).
 
 Qué probar en la demo:
 1. **Simular**: elige un escenario (éxito, falla 2 veces y se recupera, `429` con `Retry-After`, timeout, rechazado `4xx`). El evento es ficticio, va firmado con HMAC y entra por el mismo camino que un webhook real de GitHub.
