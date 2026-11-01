@@ -1,3 +1,5 @@
+export type Scenario = "ok" | "recover" | "rate_limit" | "timeout" | "rejected";
+
 export type Status = "received" | "processing" | "retrying" | "delivered" | "dead";
 
 export interface EventItem {

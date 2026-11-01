@@ -40,5 +40,7 @@ export function useFetch<T>(load: () => Promise<T>, deps: unknown[], every = 0) 
 }
 
 export function ErrorNote({ message }: { message: string }) {
-  return <p role="alert" className="error">No se pudo cargar: {message}. ¿Está corriendo la API en el puerto 8000?</p>;
+  // La pista del puerto solo tiene sentido si ni siquiera hubo respuesta del servidor.
+  const hint = message === "Failed to fetch" ? " ¿Está corriendo la API en el puerto 8000?" : "";
+  return <p role="alert" className="error">No se pudo cargar: {message}.{hint}</p>;
 }
