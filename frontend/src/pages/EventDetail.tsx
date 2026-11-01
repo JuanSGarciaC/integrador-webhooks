@@ -1,8 +1,15 @@
+import { useState } from "react";
 import { api } from "../api";
 import { ErrorNote, fmtDate, StatusBadge, useFetch } from "./shared";
 
 export function EventDetail({ id }: { id: string }) {
-  const { data: ev, error } = useFetch(() => api.event(id), [id], 3000);
+  // En vivo (1 s) mientras el evento está en curso; al llegar a un estado final deja de sondear.
+  const [live, setLive] = useState(true);
+  const { data: ev, error } = useFetch(
+    () => api.event(id).then((e) => { setLive(e.status !== "delivered" && e.status !== "dead"); return e; }),
+    [id],
+    live ? 1000 : 0,
+  );
   if (error) return <><a href="#/events">← Volver</a><ErrorNote message={error} /></>;
   if (!ev) return <p>Cargando…</p>;
   return (

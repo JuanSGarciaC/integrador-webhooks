@@ -5,8 +5,10 @@
   },
   "variable": [
     {"key": "baseUrl", "value": "http://127.0.0.1:8000"},
-    {"key": "secret", "value": "newman-secret"}
+    {"key": "secret", "value": "newman-secret"},
+    {"key": "adminToken", "value": "newman-admin"}
   ],
+  "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{adminToken}}", "type": "string"}]},
   "item": [
     {"name": "Health", "request": {"method": "GET", "url": "{{baseUrl}}/health"},
      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
@@ -49,6 +51,15 @@
          {"key": "X-GitHub-Delivery", "value": "x"},
          {"key": "X-Hub-Signature-256", "value": "sha256=00"}],
        "body": {"mode": "raw", "raw": "{}"}}},
+    {"name": "Listar sin token -> 401",
+     "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+       "pm.test('401 con WWW-Authenticate', () => { pm.response.to.have.status(401); pm.expect(pm.response.headers.get('WWW-Authenticate')).to.eql('Bearer'); });"]}}],
+     "request": {"auth": {"type": "noauth"}, "method": "GET", "url": "{{baseUrl}}/api/events?limit=5"}},
+    {"name": "Token incorrecto -> 401",
+     "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+       "pm.test('401', () => pm.response.to.have.status(401));"]}}],
+     "request": {"auth": {"type": "bearer", "bearer": [{"key": "token", "value": "token-malo", "type": "string"}]},
+                 "method": "GET", "url": "{{baseUrl}}/api/events?limit=5"}},
     {"name": "Listar eventos",
      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
        "pm.test('200 con total', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().total).to.be.at.least(1); });"]}}],

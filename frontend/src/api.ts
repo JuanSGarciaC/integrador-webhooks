@@ -1,7 +1,19 @@
-import type { EventDetailData, EventItem, EventPage, Stats } from "./types";
+import type { EventDetailData, EventItem, EventPage, Scenario, Stats, Status } from "./types";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(path, init);
+// El token admin vive solo en esta pestaña (sessionStorage), nunca en localStorage.
+const TOKEN_KEY = "adminToken";
+export const getToken = () => sessionStorage.getItem(TOKEN_KEY) ?? "";
+export function setToken(token: string) {
+  if (token) sessionStorage.setItem(TOKEN_KEY, token);
+  else sessionStorage.removeItem(TOKEN_KEY);
+  window.dispatchEvent(new Event("token-change"));
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  const token = getToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const r = await fetch(path, { ...init, headers });
   if (!r.ok) {
     let msg = `Error ${r.status}`;
     try {
@@ -9,7 +21,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* cuerpo no JSON */
     }
-    throw new Error(msg);
+    if (r.status === 401)
+      msg = token
+        ? "el token admin guardado no es válido: pulsa «Salir» para volver a visitante"
+        : "necesitas el token admin para esta acción";
+    throw new Error(typeof msg === "string" ? msg : `Error ${r.status}`);
   }
   return r.json() as Promise<T>;
 }
@@ -23,4 +39,11 @@ export const api = {
   event: (id: string) => request<EventDetailData>(`/api/events/${id}`),
   replay: (id: string) => request<EventItem>(`/api/events/${id}/replay`, { method: "POST" }),
   stats: () => request<Stats>("/api/stats"),
+  demo: () => request<{ demo: boolean }>("/api/demo"),
+  simulate: (scenario: Scenario) =>
+    request<{ id: string; status: Status }>("/api/demo/simulate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scenario }),
+    }),
 };

@@ -1,0 +1,16 @@
+# Blueprint de Render (plan gratuito): un solo servicio web con la imagen del Dockerfile.
+# Los secretos los genera Render; el token admin se consulta en el panel de Render.
+services:
+  - type: web
+    name: integrador-webhooks-demo
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: WEBHOOK_SECRET
+        generateValue: true
+      - key: ADMIN_TOKEN
+        generateValue: true
+      - key: CLIENT_IP_HEADER
+        value: True-Client-IP
