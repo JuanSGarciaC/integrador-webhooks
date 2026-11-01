@@ -11,6 +11,8 @@ from app.config import Settings
 from app.database import make_engine, make_session_factory, init_db
 
 SECRET = "test-secret"
+ADMIN = "test-admin"
+AUTH = {"Authorization": f"Bearer {ADMIN}"}
 
 
 class FakeClock:
@@ -32,9 +34,9 @@ def sign(body: bytes, secret: str = SECRET) -> str:
 
 @pytest.fixture
 def settings():
-    return Settings(webhook_secret=SECRET, database_url="sqlite://", max_body_bytes=2000,
-                    retry_base_seconds=2, retry_factor=2, retry_cap_seconds=300,
-                    max_attempts=3, lock_seconds=60)
+    return Settings(webhook_secret=SECRET, admin_token=ADMIN, database_url="sqlite://",
+                    max_body_bytes=2000, retry_base_seconds=2, retry_factor=2,
+                    retry_cap_seconds=300, max_attempts=3, lock_seconds=60)
 
 
 @pytest.fixture
@@ -51,7 +53,22 @@ def session_factory(settings):
 
 @pytest.fixture
 def client(settings, session_factory, clock):
-    return TestClient(create_app(settings, session_factory, clock))
+    """Cliente con token admin (la mayoría de pruebas no tratan de autorización)."""
+    return TestClient(create_app(settings, session_factory, clock), headers=AUTH)
+
+
+@pytest.fixture
+def make_client(settings, session_factory, clock):
+    """Construye un cliente con otros Settings; `headers` por defecto: ninguno (anónimo)."""
+    def build(headers=None, **overrides):
+        s = Settings(**{**settings.__dict__, **overrides})
+        return TestClient(create_app(s, session_factory, clock), headers=headers or {})
+    return build
+
+
+@pytest.fixture
+def anon(make_client):
+    return make_client()
 
 
 def post_webhook(client, payload=None, event="push", delivery="d-1", secret=SECRET,
