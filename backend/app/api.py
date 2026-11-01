@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from app import repository
 from app.auth import admin, reader
 from app.config import Settings
-from app.demo import build_payload
+from app.demo import RateLimiter, build_payload, client_ip
 from app.mapping import SUPPORTED
 from app.models import Event
 from app.schemas import (AttemptOut, DemoInfo, Detail, EventDetail, EventOut, EventPage, EventType,
@@ -124,11 +124,22 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
         return DemoInfo(demo=settings.demo_mode)
 
     if settings.demo_mode:
+        limiter = RateLimiter(settings.demo_rate_per_minute, clock)
+
+        def make_room() -> bool:
+            with session_factory() as s:
+                excess = repository.count_events(s) - settings.demo_max_events + 1
+                return excess <= 0 or repository.purge_oldest_final(s, excess) == excess
+
         @router.post("/api/demo/simulate", status_code=202, tags=["demo"], dependencies=can_read,
-                     responses={**_401, 422: {}},
+                     responses={**_401, 422: {}, 429: {"model": Detail}},
                      description="Solo existe con DEMO_MODE: crea un evento ficticio firmado "
                                  "que entra por el mismo camino que POST /webhooks/github.")
-        async def simulate(data: SimulateIn):
+        async def simulate(data: SimulateIn, request: Request):
+            if not limiter.allow(client_ip(request, settings.client_ip_header)):
+                return _json(429, detail="demasiadas simulaciones, espera un minuto")
+            if not await run_in_threadpool(make_room):
+                return _json(429, detail="demo llena, prueba en un minuto")
             body = build_payload(data.scenario)
             sig = "sha256=" + hmac.new(settings.webhook_secret.encode(), body,
                                        hashlib.sha256).hexdigest()

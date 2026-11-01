@@ -1,7 +1,7 @@
 import math
 from datetime import datetime, timedelta
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -107,6 +107,22 @@ def stats(s: Session) -> dict:
 
 class NotFound(Exception):
     pass
+
+
+def count_events(s: Session) -> int:
+    return s.scalar(select(func.count()).select_from(Event))
+
+
+def purge_oldest_final(s: Session, n: int) -> int:
+    """Borra los `n` eventos más antiguos en estado final (delivered/dead) y sus intentos.
+    Nunca toca eventos pendientes. Devuelve cuántos borró."""
+    ids = s.scalars(select(Event.id).where(Event.status.in_(("delivered", "dead")))
+                    .order_by(Event.received_at).limit(n)).all()
+    if ids:
+        s.execute(delete(DeliveryAttempt).where(DeliveryAttempt.event_id.in_(ids)))
+        s.execute(delete(Event).where(Event.id.in_(ids)))
+        s.commit()
+    return len(ids)
 
 
 class NotDead(Exception):
