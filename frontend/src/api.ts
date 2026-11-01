@@ -21,7 +21,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     } catch {
       /* cuerpo no JSON */
     }
-    if (r.status === 401) msg = "necesitas el token admin para esta acción";
+    if (r.status === 401)
+      msg = token
+        ? "el token admin guardado no es válido: pulsa «Salir» para volver a visitante"
+        : "necesitas el token admin para esta acción";
     throw new Error(typeof msg === "string" ? msg : `Error ${r.status}`);
   }
   return r.json() as Promise<T>;

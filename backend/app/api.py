@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import hmac
 import json
@@ -127,6 +128,7 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
 
     if settings.demo_mode:
         limiter = RateLimiter(settings.demo_rate_per_minute, clock)
+        room_lock = asyncio.Lock()  # hacer hueco + insertar como un paso: el tope no se supera
 
         def make_room() -> bool:
             with session_factory() as s:
@@ -140,14 +142,15 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
         async def simulate(data: SimulateIn, request: Request):
             if not limiter.allow(client_ip(request, settings.client_ip_header)):
                 return _json(429, detail="demasiadas simulaciones, espera un minuto")
-            if not await run_in_threadpool(make_room):
-                return _json(429, detail="demo llena, prueba en un minuto")
             body = build_payload(data.scenario)
             sig = "sha256=" + hmac.new(settings.webhook_secret.encode(), body,
                                        hashlib.sha256).hexdigest()
-            return await ingest(body, {"x-github-event": "push",
-                                       "x-github-delivery": str(uuid.uuid4()),
-                                       "x-hub-signature-256": sig})
+            async with room_lock:
+                if not await run_in_threadpool(make_room):
+                    return _json(429, detail="demo llena, prueba en un minuto")
+                return await ingest(body, {"x-github-event": "push",
+                                           "x-github-delivery": str(uuid.uuid4()),
+                                           "x-hub-signature-256": sig})
 
     app.include_router(router)
     if settings.demo_mode and settings.static_dir and os.path.isdir(settings.static_dir):

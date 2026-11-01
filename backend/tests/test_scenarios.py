@@ -98,3 +98,12 @@ def test_recover_aplica_el_efecto_una_sola_vez(make_client, session_factory, dem
 def test_repos_no_demo_siguen_aleatorios():
     mock = MockDownstream(failure_rate=1.0, seed=1)
     assert mock.decide("k", {"repository": "yo/r"})[0] == 503
+
+
+def test_memoria_del_mock_acotada():
+    # La demo pública recibe simulaciones sin fin: el mock no puede crecer sin límite.
+    mock = MockDownstream(max_keys=3)
+    for i in range(10):
+        mock.decide(f"k{i}", {"repository": "demo/ok"})
+    assert len(mock.applied) <= 3 and len(mock.seen) <= 3 and len(mock.received) <= 3
+    assert mock.applied_count("k9") == 1
