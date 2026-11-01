@@ -3,8 +3,18 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.demo import Scenario
+
 Status = Literal["received", "processing", "retrying", "delivered", "dead"]
 EventType = Literal["push", "issues", "pull_request", "ping"]
+
+
+class SimulateIn(BaseModel):
+    scenario: Scenario
+
+
+class DemoInfo(BaseModel):
+    demo: bool
 
 
 class AttemptOut(BaseModel):
