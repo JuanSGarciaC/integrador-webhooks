@@ -25,7 +25,7 @@
 ## Review Focus
 
 1. `ADMIN_TOKEN` vacío + cabecera `Authorization: Bearer ` (token vacío) ⇒ debe ser `401`, nunca admin (`compare_digest("", "")` es `True`). Prueba en Task 1.
-2. Visitante que envía su propio `X-Forwarded-For` para esquivar el límite ⇒ sigue limitado (se usa el **último** valor). Prueba en Task 3.
+2. Visitante que envía su propio `X-Forwarded-For` para esquivar el límite ⇒ sigue limitado (nunca se usa XFF; solo `CLIENT_IP_HEADER`). Prueba en Task 3.
 3. La purga por tope nunca borra eventos en `received`/`processing`/`retrying`. Prueba en Task 3.
 4. El panel estático montado en `/` no tapa `/api/*`, `/webhooks/github`, `/docs` ni `/health`. Prueba en Task 5.
 5. `rejected` reprocesado debe acabar en `delivered` aunque el mock ya vio esa `Idempotency-Key`. Prueba en Task 4.

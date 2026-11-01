@@ -1,9 +1,11 @@
 import json
 
+import httpx
 import pytest
 from sqlalchemy import select
 
-from app.models import Event
+from app.models import DeliveryAttempt, Event
+from app.worker import process_once
 from tests.conftest import AUTH
 
 
@@ -60,3 +62,67 @@ def test_demo_info_es_publico(make_client, flag):
 def test_simular_con_token_incorrecto_401(make_client):
     c = make_client(headers={"Authorization": "Bearer malo"}, demo_mode=True)
     assert c.post("/api/demo/simulate", json={"scenario": "ok"}).status_code == 401
+
+
+# --- Límite por IP y tope de eventos ---
+
+
+def sim(c, headers=None, scenario="ok"):
+    return c.post("/api/demo/simulate", json={"scenario": scenario}, headers=headers or {})
+
+
+def deliver_all(session_factory, settings, clock, status=200):
+    http = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(status)))
+    process_once(session_factory, settings, http, clock, jitter=lambda: 1.0)
+
+
+def test_limite_por_ip(make_client, clock):
+    c = make_client(demo_mode=True, demo_rate_per_minute=2)
+    assert [sim(c).status_code for _ in range(3)] == [202, 202, 429]
+    assert sim(c).json() == {"detail": "demasiadas simulaciones, espera un minuto"}
+    clock.advance(60)
+    assert sim(c).status_code == 202
+
+
+def test_x_forwarded_for_falseado_no_esquiva(make_client):
+    # Render añade al X-Forwarded-For que manda el cliente: nunca se usa.
+    c = make_client(demo_mode=True, demo_rate_per_minute=1)
+    assert sim(c, {"X-Forwarded-For": "1.1.1.1"}).status_code == 202
+    assert sim(c, {"X-Forwarded-For": "2.2.2.2"}).status_code == 429
+
+
+def test_cabecera_fiable_configurada_separa_visitantes(make_client):
+    c = make_client(demo_mode=True, demo_rate_per_minute=1, client_ip_header="True-Client-IP")
+    assert sim(c, {"True-Client-IP": "9.9.9.9"}).status_code == 202
+    assert sim(c, {"True-Client-IP": "8.8.8.8"}).status_code == 202
+    assert sim(c, {"True-Client-IP": "9.9.9.9"}).status_code == 429
+
+
+def test_cabecera_no_configurada_se_ignora(make_client):
+    c = make_client(demo_mode=True, demo_rate_per_minute=1)
+    assert sim(c, {"True-Client-IP": "9.9.9.9"}).status_code == 202
+    assert sim(c, {"True-Client-IP": "8.8.8.8"}).status_code == 429
+
+
+def test_tope_purga_el_final_mas_antiguo(make_client, session_factory, settings, clock):
+    c = make_client(demo_mode=True, demo_max_events=2)
+    first = sim(c).json()["id"]
+    clock.advance(1)
+    second = sim(c).json()["id"]
+    deliver_all(session_factory, settings, clock)
+    clock.advance(1)
+    assert sim(c).status_code == 202
+    ids = [e.id for e in events(session_factory)]
+    assert len(ids) == 2 and first not in ids and second in ids
+    with session_factory() as s:
+        assert s.scalars(select(DeliveryAttempt).where(DeliveryAttempt.event_id == first)).all() == []
+
+
+def test_tope_no_purga_pendientes(make_client, session_factory, settings, clock):
+    c = make_client(demo_mode=True, demo_max_events=1)
+    pending = sim(c).json()["id"]
+    deliver_all(session_factory, settings, clock, status=503)  # queda en retrying
+    r = sim(c)
+    assert r.status_code == 429 and r.json() == {"detail": "demo llena, prueba en un minuto"}
+    [ev] = events(session_factory)
+    assert ev.id == pending and ev.status == "retrying"

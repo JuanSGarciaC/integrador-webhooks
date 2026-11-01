@@ -80,7 +80,7 @@ Cuerpo `{"scenario": "<nombre>"}`; respuesta `202 {"id", "status"}` como el webh
 
 - El servidor construye un payload `push` **ficticio** (`repository.full_name = "demo/<escenario>"`, `sender.login = "visitante-demo"`), `X-GitHub-Delivery` = UUID nuevo, lo **firma con `WEBHOOK_SECRET`** y lo pasa por la **misma función de ingesta** que `POST /webhooks/github` (extraer el cuerpo del handler a una función compartida; el handler HTTP queda igual).
 - `MockDownstream` gana un modo por escenario: lee `repository` del cuerpo normalizado (ya viaja: ver `mapping.normalize`), cuenta intentos por `Idempotency-Key` y responde según la tabla. Repositorios que no empiezan por `demo/` siguen la lógica aleatoria actual (sin cambios para `simulate_load.py` ni pruebas existentes).
-- Límite por IP: ventana fija en memoria por minuto, con el reloj inyectado. `shortcut:` en memoria y por proceso, válido con un solo contenedor. IP del cliente: Render añade la IP real como **último** valor de `X-Forwarded-For`; usar ese último valor (los anteriores los controla el visitante y no son fiables) y, si no hay cabecera, `request.client.host`. **No** arrancar uvicorn con `--forwarded-allow-ips='*'`. Prueba unitaria: un `X-Forwarded-For` falseado por el cliente no esquiva el límite.
+- Límite por IP: ventana fija en memoria por minuto, con el reloj inyectado. `shortcut:` en memoria y por proceso, válido con un solo contenedor. IP del cliente: solo se confía en la cabecera configurada en `CLIENT_IP_HEADER` (en Render, `True-Client-IP`, que fija Cloudflare y el cliente no puede falsear); sin configurar, `request.client.host`. **Nunca** `X-Forwarded-For`: Render añade al valor que envía el cliente y el último valor es la IP de Cloudflare, no la del visitante (corregido al implementar, 2026-11-01). Prueba unitaria: un `X-Forwarded-For` falseado no esquiva el límite.
 - Tope global: si `count(events) >= DEMO_MAX_EVENTS`, antes de insertar se **borran los eventos más antiguos en estado final** (`delivered`/`dead`, con sus intentos) hasta dejar hueco; si no hay ninguno en estado final ⇒ `429 "demo llena, prueba en un minuto"`. Así la demo nunca queda bloqueada por alguien que la llena. Función nueva en `repository` con su prueba.
 - Escenario desconocido ⇒ `422` (validación Pydantic con `Literal`).
 
@@ -137,7 +137,7 @@ Newman: añadir cabecera de token por variable de colección y casos `401` (sin 
 - Polling de 1 s en el detalle en lugar de WebSockets/SSE.
 - `rejected` se acepta tras el reproceso: cuenta la historia completa de la cola de fallidos (falla → se corrige → admin reprocesa → entregado).
 - Al llegar al tope se purgan los eventos finales más antiguos en vez de bloquear la demo.
-- IP del cliente = último valor de `X-Forwarded-For` (el que añade Render).
+- IP del cliente = cabecera fiable configurada (`CLIENT_IP_HEADER=True-Client-IP` en Render).
 
 ## A cargo del implementador
 
