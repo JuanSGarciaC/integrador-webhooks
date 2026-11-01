@@ -5,6 +5,11 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Settings:
     webhook_secret: str = ""
+    admin_token: str = ""  # vacío = nadie es admin (falla cerrado)
+    demo_mode: bool = False
+    demo_rate_per_minute: int = 10
+    demo_max_events: int = 500
+    static_dir: str = ""
     database_url: str = "sqlite:///./webhooks.db"
     downstream_url: str = "http://127.0.0.1:9000/ingest"
     max_body_bytes: int = 1_000_000
@@ -38,6 +43,11 @@ def load_settings() -> Settings:
     e = os.environ.get
     return Settings(
         webhook_secret=e("WEBHOOK_SECRET", d.webhook_secret),
+        admin_token=e("ADMIN_TOKEN", d.admin_token),
+        demo_mode=e("DEMO_MODE", "").strip().lower() in ("1", "true", "yes"),
+        demo_rate_per_minute=int(e("DEMO_RATE_PER_MINUTE", d.demo_rate_per_minute)),
+        demo_max_events=int(e("DEMO_MAX_EVENTS", d.demo_max_events)),
+        static_dir=e("STATIC_DIR", d.static_dir),
         database_url=e("DATABASE_URL", d.database_url),
         downstream_url=e("DOWNSTREAM_URL", d.downstream_url),
         max_body_bytes=int(e("MAX_BODY_BYTES", d.max_body_bytes)),

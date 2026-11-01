@@ -2,12 +2,13 @@ import json
 import logging
 from typing import Callable
 
-from fastapi import APIRouter, FastAPI, Query, Request
+from fastapi import APIRouter, Depends, FastAPI, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import sessionmaker
 
 from app import repository
+from app.auth import admin, reader
 from app.config import Settings
 from app.mapping import SUPPORTED
 from app.models import Event
@@ -25,6 +26,8 @@ def _json(code: int, **body) -> JSONResponse:
 def create_app(settings: Settings, session_factory: sessionmaker, clock: Callable) -> FastAPI:
     app = FastAPI(title="Integrador de webhooks", version="1.0.0")
     router = APIRouter()
+    can_read = [Depends(reader(settings))]
+    _401 = {401: {"model": Detail}}
 
     @router.get("/health")
     def health():
@@ -70,7 +73,8 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
                              "status": ev.status, "attempt": 0}))
         return _json(202, id=ev.id, status=ev.status)
 
-    @router.get("/api/events", response_model=EventPage, tags=["events"])
+    @router.get("/api/events", response_model=EventPage, tags=["events"],
+                dependencies=can_read, responses=_401)
     def list_events(status: Status | None = None, event_type: EventType | None = None,
                     limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
         with session_factory() as s:
@@ -78,7 +82,7 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
             return EventPage(total=total, items=[EventOut.model_validate(e) for e in items])
 
     @router.get("/api/events/{event_id}", response_model=EventDetail, tags=["events"],
-                responses={404: {"model": Detail}})
+                dependencies=can_read, responses={**_401, 404: {"model": Detail}})
     def get_event(event_id: str):
         with session_factory() as s:
             ev = s.get(Event, event_id)
@@ -89,7 +93,8 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
                                attempt_history=[AttemptOut.model_validate(a) for a in ev.attempt_log])
 
     @router.post("/api/events/{event_id}/replay", response_model=EventOut, tags=["events"],
-                 responses={404: {"model": Detail}, 409: {"model": Detail}})
+                 dependencies=[Depends(admin(settings))],
+                 responses={**_401, 404: {"model": Detail}, 409: {"model": Detail}})
     def replay_event(event_id: str):
         with session_factory() as s:
             try:
@@ -101,7 +106,8 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
             log.info(json.dumps({"msg": "reproceso", "event_id": ev.id, "status": ev.status}))
             return EventOut.model_validate(ev)
 
-    @router.get("/api/stats", response_model=StatsOut, tags=["events"])
+    @router.get("/api/stats", response_model=StatsOut, tags=["events"],
+                dependencies=can_read, responses=_401)
     def get_stats():
         with session_factory() as s:
             return repository.stats(s)

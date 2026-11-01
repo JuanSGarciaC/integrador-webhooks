@@ -34,6 +34,7 @@ jobs:
         working-directory: backend
         env:
           WEBHOOK_SECRET: newman-secret
+          ADMIN_TOKEN: newman-admin
           DATABASE_URL: sqlite:///./ci.db
         run: |
           nohup uvicorn app.main:app --port 8000 --log-level warning > ../api.log 2>&1 &
