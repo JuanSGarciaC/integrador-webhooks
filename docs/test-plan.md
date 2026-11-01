@@ -11,7 +11,7 @@ Ejecutar: `cd backend && pytest --cov=app` · Contrato: `npx newman run docs/pos
 | Flujo del worker | `test_worker_flow.py` | entrega a la primera; entrega tras 2 fallos; `4xx`→dead; agotar intentos; timeout; `429` con `Retry-After`; bloqueo vencido; misma `Idempotency-Key`; idempotencia del destino | HU-05–09 |
 | Reproceso y consulta | `test_replay.py` | dead→retrying→delivered; `409`; `404`; filtros y paginación; `422`; estadísticas | HU-10, HU-11 |
 | Autorización | `test_auth.py` | matriz de roles: lectura sin token `401` / en demo `200`, token incorrecto `401` también en demo, esquema no Bearer, replay solo admin, `ADMIN_TOKEN` vacío falla cerrado | Demo §2 |
-| Simulador | `test_simulate.py` | evento ficticio por el camino del webhook, `422`, `404` fuera de demo, límite por IP, `X-Forwarded-For` falseado, cabecera fiable, tope con purga solo de finales | Demo §3 |
+| Simulador | `test_simulate.py` | evento ficticio por el camino del webhook, `422`, `404` fuera de demo, límite por IP, `X-Forwarded-For` falseado, cabecera fiable, tope con purga solo de finales, purga que no borra un evento reprocesado a mitad | Demo §3 |
 | Escenarios | `test_scenarios.py` | los 5 escenarios llegan a su estado final con el número de intentos esperado; `Retry-After`; timeout sin `http_status`; `rejected` reprocesado se entrega con el efecto aplicado una vez | Demo §3 |
 | Imagen de demo | `test_demo_app.py` | panel en `/` sin tapar `/api`, `/docs`, `/health` ni el webhook; arranque bloqueado sin secretos | Demo §5 |
 | Contrato | Newman (13 aserciones, incluidas `401` sin token y con token incorrecto) + `--check` de `openapi.json` | rutas y códigos de la API | HU-12 |
@@ -38,3 +38,5 @@ Se ejecuta contra la **misma imagen que se despliega**: `docker run ... integrad
 | `/api/*` fuera de demo | sin token / token malo | `401` | igual | Newman, job `contract` | ✅ |
 
 En CI corre el job `e2e` de `.github/workflows/ci.yml`. Primera ejecución en verde de los cuatro jobs (`backend`, `contract`, `frontend`, `e2e`): [run 41333053308](https://github.com/JuanSGarciaC/integrador-webhooks/actions/runs/41333053308), 2026-11-01.
+
+**Pendiente (requiere la demo desplegada):** comprobar que Render no deja pasar un `True-Client-IP` enviado por el cliente (procedimiento en `runbook.md`, paso 6 de «Demo pública»).

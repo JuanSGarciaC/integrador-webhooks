@@ -118,11 +118,15 @@ def purge_oldest_final(s: Session, n: int) -> int:
     Nunca toca eventos pendientes. Devuelve cuántos borró."""
     ids = s.scalars(select(Event.id).where(Event.status.in_(("delivered", "dead")))
                     .order_by(Event.received_at).limit(n)).all()
-    if ids:
-        s.execute(delete(DeliveryAttempt).where(DeliveryAttempt.event_id.in_(ids)))
-        s.execute(delete(Event).where(Event.id.in_(ids)))
-        s.commit()
-    return len(ids)
+    if not ids:
+        return 0
+    # Se vuelve a exigir estado final al borrar: un replay entre SELECT y DELETE lo saca de la purga.
+    deleted = s.scalars(delete(Event).where(Event.id.in_(ids), Event.status.in_(("delivered", "dead")))
+                        .returning(Event.id)).all()
+    if deleted:
+        s.execute(delete(DeliveryAttempt).where(DeliveryAttempt.event_id.in_(deleted)))
+    s.commit()
+    return len(deleted)
 
 
 class NotDead(Exception):

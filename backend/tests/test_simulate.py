@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -126,3 +127,26 @@ def test_tope_no_purga_pendientes(make_client, session_factory, settings, clock)
     assert r.status_code == 429 and r.json() == {"detail": "demo llena, prueba en un minuto"}
     [ev] = events(session_factory)
     assert ev.id == pending and ev.status == "retrying"
+
+
+def test_purga_no_borra_evento_reencolado(session_factory, settings, clock, make_client):
+    """Si un evento deja de ser final entre la selección y el borrado, no se borra."""
+    from app import repository
+
+    c = make_client(demo_mode=True)
+    event_id = sim(c).json()["id"]
+    deliver_all(session_factory, settings, clock, status=422)  # dead
+    with session_factory() as s:
+        real_scalars = s.scalars
+
+        def scalars_then_replay(*a, **kw):  # simula un replay justo después del SELECT
+            s.scalars = real_scalars  # solo la primera consulta (la selección de candidatos)
+            ids = real_scalars(*a, **kw).all()
+            with session_factory() as other:
+                repository.replay(other, event_id, clock())
+            return SimpleNamespace(all=lambda: ids)
+
+        s.scalars = scalars_then_replay
+        assert repository.purge_oldest_final(s, 1) == 0
+    [ev] = events(session_factory)
+    assert ev.status == "retrying"

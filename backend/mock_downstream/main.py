@@ -7,6 +7,7 @@ determinista según el escenario; el resto sigue la lógica aleatoria.
 """
 import asyncio
 import json
+from collections import OrderedDict, deque
 import os
 import random
 import threading
@@ -18,7 +19,7 @@ from fastapi import FastAPI, Request, Response
 class MockDownstream:
     def __init__(self, failure_rate: float = 0.0, rate_limit_rate: float = 0.0,
                  seed: int | None = None, idempotent: bool = True,
-                 lost_ack_share: float = 0.0):
+                 lost_ack_share: float = 0.0, max_keys: int = 10_000):
         """lost_ack_share: fracción de los fallos que aplican el efecto y luego devuelven 503
         (respuesta perdida). Hace que el reintento sea una entrega redundante real."""
         self.failure_rate = failure_rate
@@ -28,14 +29,17 @@ class MockDownstream:
         self.redundant_requests = 0  # 2xx para una key ya aplicada (idempotencia en acción)
         self._rng = random.Random(seed)
         self._lock = threading.Lock()
-        self.applied: dict[str, int] = {}  # Idempotency-Key -> veces que se aplicó el efecto
-        self.received: list[dict] = []  # eventos aplicados (para GET /received)
-        self.seen: dict[str, int] = {}  # intentos por key en escenarios demo
+        # Memoria acotada: la demo pública recibe simulaciones sin fin (se olvidan las más viejas).
+        self.max_keys = max_keys
+        self.applied: OrderedDict[str, int] = OrderedDict()  # key -> veces que se aplicó
+        self.received: deque[dict] = deque(maxlen=max_keys)  # eventos aplicados (GET /received)
+        self.seen: OrderedDict[str, int] = OrderedDict()  # intentos por key en escenarios demo
 
     def scenario_response(self, key: str, repository: str) -> tuple[int | None, dict]:
         """Respuesta determinista para demo/<escenario>; None = no responder (timeout)."""
         n = self.seen.get(key, 0)
         self.seen[key] = n + 1
+        self._trim(self.seen)
         scenario = repository.removeprefix("demo/")
         if scenario == "recover" and n < 2:
             return 503, {}
@@ -72,7 +76,12 @@ class MockDownstream:
             self.redundant_requests += 1  # ya aplicado: no se repite el efecto
             return
         self.applied[key] = self.applied.get(key, 0) + 1
+        self._trim(self.applied)
         self.received.append(body)
+
+    def _trim(self, d: OrderedDict) -> None:
+        while len(d) > self.max_keys:
+            d.popitem(last=False)
 
     def handle(self, request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content or b"{}")
@@ -102,7 +111,7 @@ def create_mock_app(mock: MockDownstream) -> FastAPI:
 
     @app.get("/received")
     def received():
-        return mock.received
+        return list(mock.received)
 
     return app
 
