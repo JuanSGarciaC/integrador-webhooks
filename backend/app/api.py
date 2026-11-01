@@ -1,5 +1,8 @@
+import hashlib
+import hmac
 import json
 import logging
+import uuid
 from typing import Callable
 
 from fastapi import APIRouter, Depends, FastAPI, Query, Request
@@ -10,10 +13,11 @@ from sqlalchemy.orm import sessionmaker
 from app import repository
 from app.auth import admin, reader
 from app.config import Settings
+from app.demo import build_payload
 from app.mapping import SUPPORTED
 from app.models import Event
-from app.schemas import (AttemptOut, Detail, EventDetail, EventOut, EventPage, EventType,
-                         StatsOut, Status)
+from app.schemas import (AttemptOut, DemoInfo, Detail, EventDetail, EventOut, EventPage, EventType,
+                         SimulateIn, StatsOut, Status)
 from app.security import verify_signature
 
 log = logging.getLogger("integrador")
@@ -39,16 +43,19 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
         declared = request.headers.get("content-length")
         if declared and declared.isdigit() and int(declared) > settings.max_body_bytes:
             return _json(413, detail="cuerpo demasiado grande")
-        body = await request.body()
+        return await ingest(await request.body(), request.headers)
+
+    async def ingest(body: bytes, headers) -> JSONResponse:
+        """Camino único de entrada: lo usan el webhook real y el simulador de la demo."""
         if len(body) > settings.max_body_bytes:
             return _json(413, detail="cuerpo demasiado grande")
 
         if not verify_signature(settings.webhook_secret, body,
-                                request.headers.get("x-hub-signature-256")):
+                                headers.get("x-hub-signature-256")):
             return _json(401, detail="firma inválida o ausente")
 
-        event_type = request.headers.get("x-github-event", "")
-        delivery_id = request.headers.get("x-github-delivery", "")
+        event_type = headers.get("x-github-event", "")
+        delivery_id = headers.get("x-github-delivery", "")
         if not delivery_id:
             return _json(400, detail="falta X-GitHub-Delivery")
         if event_type not in SUPPORTED:
@@ -111,6 +118,23 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
     def get_stats():
         with session_factory() as s:
             return repository.stats(s)
+
+    @router.get("/api/demo", response_model=DemoInfo, tags=["demo"])
+    def demo_info():
+        return DemoInfo(demo=settings.demo_mode)
+
+    if settings.demo_mode:
+        @router.post("/api/demo/simulate", status_code=202, tags=["demo"], dependencies=can_read,
+                     responses={**_401, 422: {}},
+                     description="Solo existe con DEMO_MODE: crea un evento ficticio firmado "
+                                 "que entra por el mismo camino que POST /webhooks/github.")
+        async def simulate(data: SimulateIn):
+            body = build_payload(data.scenario)
+            sig = "sha256=" + hmac.new(settings.webhook_secret.encode(), body,
+                                       hashlib.sha256).hexdigest()
+            return await ingest(body, {"x-github-event": "push",
+                                       "x-github-delivery": str(uuid.uuid4()),
+                                       "x-hub-signature-256": sig})
 
     app.include_router(router)
     return app

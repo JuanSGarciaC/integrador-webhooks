@@ -14,7 +14,8 @@ from app.worker import utc_now  # noqa: E402
 def generate() -> str:
     engine = make_engine("sqlite://")
     init_db(engine)
-    app = create_app(Settings(), make_session_factory(engine), utc_now)
+    # demo_mode=True para que el contrato incluya también /api/demo/simulate
+    app = create_app(Settings(demo_mode=True), make_session_factory(engine), utc_now)
     return json.dumps(app.openapi(), indent=2, ensure_ascii=False, sort_keys=True) + "\n"
 
 

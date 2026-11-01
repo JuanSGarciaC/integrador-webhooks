@@ -44,6 +44,19 @@
         "title": "AttemptOut",
         "type": "object"
       },
+      "DemoInfo": {
+        "properties": {
+          "demo": {
+            "title": "Demo",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "demo"
+        ],
+        "title": "DemoInfo",
+        "type": "object"
+      },
       "Detail": {
         "properties": {
           "detail": {
@@ -300,6 +313,26 @@
         "title": "Percentiles",
         "type": "object"
       },
+      "SimulateIn": {
+        "properties": {
+          "scenario": {
+            "enum": [
+              "ok",
+              "recover",
+              "rate_limit",
+              "timeout",
+              "rejected"
+            ],
+            "title": "Scenario",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario"
+        ],
+        "title": "SimulateIn",
+        "type": "object"
+      },
       "StatsOut": {
         "properties": {
           "avg_attempts": {
@@ -397,6 +430,70 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/demo": {
+      "get": {
+        "operationId": "demo_info_api_demo_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Demo Info",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/api/demo/simulate": {
+      "post": {
+        "description": "Solo existe con DEMO_MODE: crea un evento ficticio firmado que entra por el mismo camino que POST /webhooks/github.",
+        "operationId": "simulate_api_demo_simulate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Detail"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Simulate",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
     "/api/events": {
       "get": {
         "operationId": "list_events_api_events_get",
