@@ -10,9 +10,9 @@ Servicio que **recibe webhooks de GitHub**, comprueba que son auténticos, **los
 
 > Proyecto personal de portafolio con un **destino simulado**. No está probado en producción. Garantiza **entrega al menos una vez** con consumidor idempotente (no *exactly-once*).
 
-![Panel: detalle de un evento con sus reintentos](docs/screenshots/02-detalle-reintentos.png)
+![Flujo en vivo: se simula un webhook, falla dos veces con 503 y se entrega al tercer intento](docs/screenshots/demo-flujo.gif)
 
-*Un evento que falló 5 veces con HTTP 503 y se entregó en el sexto intento. Datos de demostración contra un destino simulado que falla ~60 % de las veces a propósito.*
+*Grabado de la demo real (contenedor local): «Falla 2 veces y se recupera» → dos `503` → espera con backoff y jitter → `200` y Entregado. Datos ficticios contra el destino simulado.*
 
 ## Demo en vivo
 
@@ -52,13 +52,19 @@ flowchart LR
 
 ## Panel
 
-| Eventos | Estadísticas |
-|---|---|
-| ![Eventos](docs/screenshots/01-eventos.png) | ![Estadísticas](docs/screenshots/03-estadisticas.png) |
-| **Fallidos** (con «Reprocesar») | **Detalle** |
-| ![Fallidos](docs/screenshots/04-fallidos.png) | ![Detalle](docs/screenshots/02-detalle-reintentos.png) |
+**Simular**: cinco escenarios con la respuesta esperada del destino y el recorrido del evento por el sistema.
 
-Sin librerías de UI, tema claro/oscuro, el estado se comunica con icono y texto (no solo color) y foco visible.
+![Simular: escenarios y recorrido del evento](docs/screenshots/01-simular-light.png)
+
+| Detalle en vivo (reintentando) | Detalle terminado (tema oscuro) |
+|---|---|
+| ![Evento reintentando, con próximo intento e indicador En vivo](docs/screenshots/07-en-vivo-light.png) | ![Evento entregado: tres intentos con sus códigos y esperas](docs/screenshots/02-detalle-reintentos-dark.png) |
+| **Eventos** | **Estadísticas** |
+| ![Lista de eventos con estado e intentos](docs/screenshots/03-eventos-light.png) | ![Tarjetas de totales, tasa de entrega, p50/p95 y barra por estado](docs/screenshots/04-estadisticas-light.png) |
+| **Fallidos como visitante**: reprocesar bloqueado | **Fallidos como admin**: reprocesar habilitado |
+| ![Fallidos sin token: botón Requiere admin deshabilitado](docs/screenshots/06-fallidos-visitante-light.png) | ![Fallidos con token admin: botón Reprocesar](docs/screenshots/05-fallidos-admin-light.png) |
+
+Sin librerías de UI. Tema claro y oscuro según el sistema. El estado se comunica con icono y texto, no solo con color, y el foco es visible. Las capturas se regeneran con `frontend/scripts/capture.mjs` contra el contenedor (datos sembrados con el simulador).
 
 ## Ejecutarlo (Windows / PowerShell)
 

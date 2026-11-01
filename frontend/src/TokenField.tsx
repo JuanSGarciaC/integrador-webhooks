@@ -27,8 +27,9 @@ export function TokenField() {
   return (
     <form className="token" onSubmit={(e) => { e.preventDefault(); setToken(draft.trim()); setDraft(""); }}>
       <span className="role">Rol: <strong>Visitante</strong></span>
-      <label>Token admin
-        <input type="password" autoComplete="off" value={draft} onChange={(e) => setDraft(e.target.value)} />
+      <label><span className="sr-only">Token admin</span>
+        <input type="password" autoComplete="off" placeholder="Token admin" value={draft}
+               onChange={(e) => setDraft(e.target.value)} />
       </label>
       <button type="submit" disabled={!draft.trim()}>Guardar</button>
     </form>
