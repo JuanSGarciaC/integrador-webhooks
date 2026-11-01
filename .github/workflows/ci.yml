@@ -54,3 +54,44 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm run build
+
+  e2e:
+    # Prueba la MISMA imagen que se despliega: API + worker + destino simulado + panel.
+    runs-on: ubuntu-latest
+    needs: backend
+    env:
+      WEBHOOK_SECRET: e2e-secret
+      ADMIN_TOKEN: e2e-admin
+      E2E_BASE_URL: http://127.0.0.1:8080
+    steps:
+      - uses: actions/checkout@v7
+      - name: Construir y arrancar la imagen de demo
+        run: |
+          docker build -t integrador-demo .
+          docker run -d --name demo -p 8080:8080 -e WEBHOOK_SECRET -e ADMIN_TOKEN \
+            -e DEMO_RATE_PER_MINUTE=1000 integrador-demo
+          for i in $(seq 1 30); do curl -sf localhost:8080/health && break || sleep 1; done
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements.txt
+      - name: E2E de API (pytest, tiempo real)
+        working-directory: backend
+        run: pytest tests_e2e -v
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: E2E del panel (Playwright)
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run e2e
+      - name: Logs del contenedor
+        if: failure()
+        run: docker logs demo
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
