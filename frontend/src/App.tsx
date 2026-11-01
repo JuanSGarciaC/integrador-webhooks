@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { api } from "./api";
+import { TokenField } from "./TokenField";
+import { Simulate } from "./pages/Simulate";
 import { DeadLetters } from "./pages/DeadLetters";
 import { EventDetail } from "./pages/EventDetail";
 import { Events } from "./pages/Events";
@@ -17,6 +20,7 @@ function useRoute(): string[] {
 }
 
 const NAV = [
+  ["simulate", "Simular"],
   ["events", "Eventos"],
   ["dead", "Fallidos"],
   ["stats", "Estadísticas"],
@@ -24,9 +28,12 @@ const NAV = [
 
 export default function App() {
   const route = useRoute();
-  const section = route[0] ?? "events";
+  const [demo, setDemo] = useState(false);
+  useEffect(() => { api.demo().then((d) => setDemo(d.demo), () => setDemo(false)); }, []);
+  const section = route[0] ?? (demo ? "simulate" : "events");
   let page;
-  if (section === "events" && route[1]) page = <EventDetail id={route[1]} />;
+  if (section === "simulate" && demo) page = <Simulate />;
+  else if (section === "events" && route[1]) page = <EventDetail id={route[1]} />;
   else if (section === "dead") page = <DeadLetters />;
   else if (section === "stats") page = <Stats />;
   else page = <Events />;
@@ -37,12 +44,13 @@ export default function App() {
       <header>
         <h1>Integrador de webhooks</h1>
         <nav aria-label="Principal">
-          {NAV.map(([key, label]) => (
+          {NAV.filter(([key]) => demo || key !== "simulate").map(([key, label]) => (
             <a key={key} href={`#/${key}`} aria-current={section === key ? "page" : undefined}>
               {label}
             </a>
           ))}
         </nav>
+        <TokenField />
       </header>
       <main id="main">{page}</main>
     </>
