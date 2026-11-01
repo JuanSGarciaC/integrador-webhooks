@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api";
 import { useToken } from "../TokenField";
-import { ErrorNote, fmtDate, useFetch } from "./shared";
+import { ErrorNote, fmtDate, HttpCode, useFetch } from "./shared";
 
 export function DeadLetters() {
   const { data, error, reload } = useFetch(() => api.events({ status: "dead", limit: 100 }), [], 3000);
@@ -22,7 +22,7 @@ export function DeadLetters() {
   return (
     <section aria-labelledby="t">
       <h2 id="t">Eventos fallidos</h2>
-      <p>Eventos que agotaron intentos o recibieron un error permanente (4xx). Revísalos según el runbook.</p>
+      <p className="lead">Eventos que agotaron intentos o recibieron un error permanente (4xx). Revísalos según el runbook.</p>
       {!isAdmin && <p className="note">Reprocesar es una acción de administración: introduce el token admin arriba.</p>}
       <p role="status" className="note">{msg}</p>
       {error && <ErrorNote message={error} />}
@@ -36,9 +36,9 @@ export function DeadLetters() {
                 <td><a href={`#/events/${e.id}`}>{fmtDate(e.received_at)}</a></td>
                 <td>{e.event_type}</td>
                 <td>{e.attempts}</td>
-                <td>{e.last_error ?? "—"}</td>
+                <td>{e.last_error?.startsWith("HTTP ") ? <HttpCode status={Number(e.last_error.slice(5))} /> : e.last_error ?? "—"}</td>
                 <td>
-                  <button onClick={() => replay(e.id)} disabled={!isAdmin}>
+                  <button className={isAdmin ? "primary" : ""} onClick={() => replay(e.id)} disabled={!isAdmin}>
                     {isAdmin ? "Reprocesar" : "Requiere admin"}
                   </button>
                 </td>
