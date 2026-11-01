@@ -39,4 +39,12 @@ Se ejecuta contra la **misma imagen que se despliega**: `docker run ... integrad
 
 En CI corre el job `e2e` de `.github/workflows/ci.yml`. Primera ejecución en verde de los cuatro jobs (`backend`, `contract`, `frontend`, `e2e`): [run 41333053308](https://github.com/JuanSGarciaC/integrador-webhooks/actions/runs/41333053308), 2026-11-01.
 
-**Pendiente (requiere la demo desplegada):** comprobar que Render no deja pasar un `True-Client-IP` enviado por el cliente (procedimiento en `runbook.md`, paso 6 de «Demo pública»).
+## Verificación en la demo desplegada (https://integrador-webhooks-demo.onrender.com, 2026-11-01)
+
+| Comprobación | Esperado | Observado | Resultado |
+|---|---|---|---|
+| `GET /health` · `GET /api/demo` · panel en `/` · `/docs` | `200` · `{"demo": true}` · `200` · `200` | igual | ✅ |
+| Simular `recover` | `delivered`, intentos `[503, 503, 200]` | igual | ✅ |
+| Simular `rejected` | `dead`, `[422]` | igual | ✅ |
+| Replay anónimo · lectura con token incorrecto | `401` · `401` | igual | ✅ |
+| Límite por IP con `True-Client-IP` falseado distinto en cada petición | `429` al superar 10/min | 10 aceptadas (2 previas + 8) y después `429` en las 4 restantes: Cloudflare sobrescribe la cabecera, así que el visitante no puede falsearla | ✅ |
