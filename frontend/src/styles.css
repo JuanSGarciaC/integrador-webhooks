@@ -28,7 +28,7 @@ th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--bor
 th { color: var(--muted); font-weight: 600; font-size: 13px; }
 .filters { display: flex; gap: 16px; margin-bottom: 12px; }
 label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); gap: 2px; }
-select, button { font: inherit; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
+select, button, input { font: inherit; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
   background: var(--surface); color: var(--text); }
 button { cursor: pointer; }
 button:disabled { opacity: .5; cursor: not-allowed; }
@@ -52,3 +52,9 @@ dt { color: var(--muted); } dd { margin: 0; }
 .card span { display: block; color: var(--muted); font-size: 13px; }
 .card strong { font-size: 24px; }
 .by-status { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 16px; }
+.token { display: flex; gap: 8px; align-items: flex-end; margin-left: auto; }
+.token label { flex-direction: row; align-items: center; gap: 6px; }
+.role { font-size: 13px; color: var(--muted); align-self: center; }
+.scenarios { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.scenarios button { font-weight: 600; background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.scenarios p { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
