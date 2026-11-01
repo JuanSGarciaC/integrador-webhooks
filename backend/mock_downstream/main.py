@@ -1,8 +1,11 @@
 """Destino simulado: falla a propósito y aplica cada Idempotency-Key una sola vez.
 
 Uso HTTP:  uvicorn mock_downstream.main:app --port 9000
-Env: FAILURE_RATE, RATE_LIMIT_RATE (0..1).
+Env: FAILURE_RATE, RATE_LIMIT_RATE (0..1), SLOW_SECONDS (escenario demo/timeout).
+Los eventos con repository "demo/<escenario>" (simulador de la demo) responden de forma
+determinista según el escenario; el resto sigue la lógica aleatoria.
 """
+import asyncio
 import json
 import os
 import random
@@ -27,10 +30,32 @@ class MockDownstream:
         self._lock = threading.Lock()
         self.applied: dict[str, int] = {}  # Idempotency-Key -> veces que se aplicó el efecto
         self.received: list[dict] = []  # eventos aplicados (para GET /received)
+        self.seen: dict[str, int] = {}  # intentos por key en escenarios demo
 
-    def decide(self, key: str | None, body: dict) -> tuple[int, dict]:
+    def scenario_response(self, key: str, repository: str) -> tuple[int | None, dict]:
+        """Respuesta determinista para demo/<escenario>; None = no responder (timeout)."""
+        n = self.seen.get(key, 0)
+        self.seen[key] = n + 1
+        scenario = repository.removeprefix("demo/")
+        if scenario == "recover" and n < 2:
+            return 503, {}
+        if scenario == "rate_limit" and n == 0:
+            return 429, {"Retry-After": "2"}
+        if scenario == "timeout" and n == 0:
+            return None, {}
+        if scenario == "rejected" and n == 0:  # tras el reproceso se acepta («se corrigió»)
+            return 422, {}
+        return 200, {}
+
+    def decide(self, key: str | None, body: dict) -> tuple[int | None, dict]:
         """Devuelve (status, headers). Un 2xx aplica el efecto (una vez si es idempotente)."""
         with self._lock:
+            repository = str(body.get("repository") or "")
+            if key and repository.startswith("demo/"):
+                status, headers = self.scenario_response(key, repository)
+                if status == 200:
+                    self._apply(key, body)
+                return status, headers
             roll = self._rng.random()
             if roll < self.rate_limit_rate:
                 return 429, {"Retry-After": "1"}
@@ -52,6 +77,8 @@ class MockDownstream:
     def handle(self, request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content or b"{}")
         status, headers = self.decide(request.headers.get("Idempotency-Key"), body)
+        if status is None:
+            raise httpx.ReadTimeout("destino simulado sin respuesta", request=request)
         return httpx.Response(status, headers=headers)
 
     def applied_count(self, key: str) -> int:
@@ -68,6 +95,9 @@ def create_mock_app(mock: MockDownstream) -> FastAPI:
     async def ingest(request: Request):
         status, headers = mock.decide(request.headers.get("Idempotency-Key"),
                                       await request.json())
+        if status is None:  # escenario timeout: el worker corta antes de esta respuesta
+            await asyncio.sleep(float(os.environ.get("SLOW_SECONDS", 3)))
+            status = 200
         return Response(status_code=status, headers=headers)
 
     @app.get("/received")
