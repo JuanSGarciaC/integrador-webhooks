@@ -12,7 +12,7 @@ Servicio que **recibe webhooks de GitHub**, comprueba que son auténticos, **los
 
 ![Flujo en vivo: se simula un webhook, falla dos veces con 503 y se entrega al tercer intento](docs/screenshots/demo-flujo.gif)
 
-*Grabado en la [demo pública](https://integrador-webhooks-demo.onrender.com) el 2026-11-01: «Falla 2 veces y se recupera» → dos `503` → espera con backoff y jitter → `200` y Entregado. Datos ficticios contra el destino simulado.*
+*Grabado el 2026-11-11 contra el contenedor local: «Falla 2 veces y se recupera» → dos `503` → espera con backoff y jitter → `200` y Entregado. Datos ficticios contra el destino simulado.*
 
 ## Demo en vivo
 
@@ -38,6 +38,7 @@ Límites de la demo: los datos son ficticios y se borran cuando el servicio se d
 | Sin pérdida silenciosa | Tras 6 intentos (o un `4xx`) el evento pasa a `dead` y se puede reprocesar |
 | Recuperación | Si el worker cae, el bloqueo (`locked_until`) vence y otro ciclo retoma el evento |
 | Entrega segura al destino | Cabecera `Idempotency-Key` = id del evento; el payload se normaliza, no se envía completo |
+| Destino real opcional | Con `DOWNSTREAM_FORMAT=triaje` entrega issues abiertos a [triaje-solicitudes](#conexión-con-triaje-solicitudes) |
 | Observabilidad | Logs JSON por intento, `GET /api/stats` con datos reales y panel web |
 | Autorización | `/api/*` exige token Bearer de admin (comparación en tiempo constante). En la demo, el visitante anónimo solo lee y simula; reprocesar siempre es admin |
 
@@ -52,19 +53,53 @@ flowchart LR
 
 ## Panel
 
-**Simular**: cinco escenarios con la respuesta esperada del destino y el recorrido del evento por el sistema.
+**Lienzo del recorrido**: Webhook → API → Cola → Worker → Destino, con rama a Fallidos. En «Simular» muestra los conteos reales y las aristas fluyen solo por donde pasaron eventos.
 
-![Simular: escenarios y recorrido del evento](docs/screenshots/01-simular-light.png)
+![Simular: lienzo con conteos por nodo y los cinco escenarios](docs/screenshots/01-simular.png)
 
-| Detalle en vivo (reintentando) | Detalle terminado (tema oscuro) |
+En el detalle, el lienzo sigue a ese evento: un punto recorre cada tramo, el Worker gira mientras hay un intento en curso y la Cola late con la cuenta atrás hasta el siguiente reintento.
+
+| Detalle en vivo (esperando el reintento) | Detalle terminado |
 |---|---|
-| ![Evento reintentando, con próximo intento e indicador En vivo](docs/screenshots/07-en-vivo-light.png) | ![Evento entregado: tres intentos con sus códigos y esperas](docs/screenshots/02-detalle-reintentos-dark.png) |
+| ![Evento reintentando: la cola muestra la cuenta atrás y el arco de vuelta fluye](docs/screenshots/02-en-vivo.png) | ![Evento entregado: recorrido completo encendido y tres intentos con sus códigos](docs/screenshots/03-detalle-entregado.png) |
 | **Eventos** | **Estadísticas** |
-| ![Lista de eventos con estado e intentos](docs/screenshots/03-eventos-light.png) | ![Tarjetas de totales, tasa de entrega, p50/p95 y barra por estado](docs/screenshots/04-estadisticas-light.png) |
+| ![Lista de eventos con estado e intentos](docs/screenshots/04-eventos.png) | ![Tarjetas de totales, tasa de entrega, p50/p95 y barra por estado](docs/screenshots/05-estadisticas.png) |
 | **Fallidos como visitante**: reprocesar bloqueado | **Fallidos como admin**: reprocesar habilitado |
-| ![Fallidos sin token: botón Requiere admin deshabilitado](docs/screenshots/06-fallidos-visitante-light.png) | ![Fallidos con token admin: botón Reprocesar](docs/screenshots/05-fallidos-admin-light.png) |
+| ![Fallidos sin token: botón Requiere admin deshabilitado](docs/screenshots/07-fallidos-visitante.png) | ![Fallidos con token admin: botón Reprocesar](docs/screenshots/06-fallidos-admin.png) |
 
-Sin librerías de UI. Tema claro y oscuro según el sistema. El estado se comunica con icono y texto, no solo con color, y el foco es visible. Capturas tomadas en la demo pública el 2026-11-01 con `frontend/scripts/capture.mjs` (datos sembrados con el simulador). La de «Fallidos como admin» es del contenedor local, porque el token admin de producción no sale de Render.
+Sin librerías de UI. Tema oscuro. El estado se comunica con icono y texto, no solo con color; el foco es visible y todo el movimiento se apaga con `prefers-reduced-motion`. El detalle muestra también «Enviado al destino»: el JSON que sale hacia el destino, junto al payload original. Capturas y GIF tomados el 2026-11-11 contra el contenedor local con `frontend/scripts/capture.mjs`, `frames.mjs` y `gif.py` (datos sembrados con el simulador).
+
+## Conexión con triaje-solicitudes
+
+El destino puede ser un servicio real: [triaje-solicitudes](https://github.com/JuanSGarciaC/triaje-solicitudes), que clasifica solicitudes de soporte. Un issue recién abierto en GitHub entra al integrador, que lo traduce al contrato de triaje y lo entrega con reintentos; triaje lo clasifica y decide si lo aprueba solo o lo manda a una persona.
+
+```mermaid
+flowchart LR
+  GH[Issue abierto en GitHub] -->|webhook firmado| INT[Integrador]
+  INT -->|POST /api/requests + Idempotency-Key| TR[triaje-solicitudes]
+  TR --> D{Política}
+  D --> A[Aprobada sola]
+  D --> H[Revisión humana]
+```
+
+| El issue en el integrador | El mismo issue en triaje |
+|---|---|
+| ![Evento issues entregado a Triaje de solicitudes, con el JSON enviado](docs/screenshots/08-issue-en-integrador.png) | ![Bandeja de triaje con el issue clasificado y aprobado](docs/screenshots/09-issue-en-triaje.png) |
+
+```powershell
+$env:WEBHOOK_SECRET="algo-secreto"; $env:ADMIN_TOKEN="otro-secreto"
+docker compose -f docker-compose.triaje.yml up -d --build --wait
+# integrador en http://localhost:8080 (Simular → «Issue nuevo → triaje») y triaje en http://localhost:8081
+```
+
+Cómo funciona (`DOWNSTREAM_FORMAT=triaje`; sin esa variable todo sigue igual, con el destino simulado):
+
+- **El integrador se adapta al destino.** Envía `subject` (título), `body` (cuerpo del issue) y `requester` (usuario), recortados a los límites de triaje. Es el único caso en que sale contenido del payload, y nunca el payload completo.
+- **Sin duplicados.** La entrega es *al menos una vez*, así que triaje respeta `Idempotency-Key`: un reenvío del mismo evento devuelve la solicitud original y no se clasifica de nuevo.
+- **Solo issues recién abiertos.** Lo demás (`push`, issues editados o cerrados) se responde `200` con `ignorado` y no se guarda.
+- **Repositorios separados.** El compose construye triaje desde su repositorio, fijado a un commit, con el clasificador de reglas (sin API de pago).
+
+Límites: los dos servicios hablan sin autenticación por la red interna del compose, y las demos públicas no están conectadas (la de triaje no acepta texto libre). Con triaje como destino, el simulador ofrece un solo escenario: un issue ficticio.
 
 ## Ejecutarlo (Windows / PowerShell)
 
@@ -94,12 +129,12 @@ docker run --rm -p 8080:8080 -e WEBHOOK_SECRET=algo-secreto -e ADMIN_TOKEN=otro-
 
 | Método y ruta | Qué hace | Respuestas |
 |---|---|---|
-| `POST /webhooks/github` | Recibe un webhook | `202` aceptado · `200` duplicado · `400` inválido o no soportado · `401` firma · `413` tamaño |
+| `POST /webhooks/github` | Recibe un webhook | `202` aceptado · `200` duplicado o ignorado · `400` inválido o no soportado · `401` firma · `413` tamaño |
 | `GET /api/events` | Lista (filtros `status`, `event_type`, `limit`, `offset`) | `200` · `401` · `422` |
-| `GET /api/events/{id}` | Detalle con historial de intentos | `200` · `401` · `404` |
+| `GET /api/events/{id}` | Detalle con historial de intentos y lo enviado al destino (`outbound`) | `200` · `401` · `404` |
 | `POST /api/events/{id}/replay` | Devuelve un `dead` a la cola (**solo admin**) | `200` · `401` · `404` · `409` si no está `dead` |
 | `GET /api/stats` | Conteos, intentos promedio, p50/p95 | `200` · `401` |
-| `GET /api/demo` | ¿Está activo el modo demo? (público) | `200` |
+| `GET /api/demo` | ¿Está activo el modo demo? ¿Cuál es el destino? (público) | `200` |
 | `POST /api/demo/simulate` | Solo con `DEMO_MODE`: crea un evento ficticio de un escenario | `202` · `401` · `422` · `429` |
 | `GET /health` | Estado del servicio | `200` |
 
@@ -129,15 +164,16 @@ Valores por defecto: base 2 s, factor 2, tope 5 min, jitter completo. Viven en `
 
 ## Pruebas y cobertura
 
-| Capa | Qué | Reloj | Resultado medido (2026-11-01, local) |
+| Capa | Qué | Reloj | Resultado medido (2026-11-11, local) |
 |---|---|---|---|
-| Unitarias e integración | `backend/tests/` con `pytest` | virtual (`FakeClock`, jitter fijo, sin `sleep`) | **99 pruebas** y **93 % de cobertura de línea** |
+| Unitarias e integración | `backend/tests/` con `pytest` | virtual (`FakeClock`, jitter fijo, sin `sleep`) | **109 pruebas** y **94 % de cobertura de línea** |
 | Contrato | Newman, `docs/postman/` y `--check` de `openapi.json` | real | 13 peticiones, 13 aserciones, 0 fallos |
 | E2E API | `backend/tests_e2e/` contra el contenedor | **real** | 9 pruebas pasan |
-| E2E panel | Playwright, `frontend/e2e/` contra el contenedor | **real** | 3 pruebas pasan (3 ejecuciones seguidas) |
+| E2E panel | Playwright, `frontend/e2e/` contra el contenedor | **real** | 3 pruebas pasan |
+| E2E conexión | `tests_e2e/test_triaje_e2e.py` contra integrador + triaje (`docker-compose.triaje.yml`) | **real** | 2 pruebas pasan |
 
 - Sin prueba unitaria: `app/main.py` y el bucle `run_forever` del worker. Los cubren los E2E, que arrancan la imagen real.
-- CI (GitHub Actions) tiene cuatro jobs: `backend`, `contract`, `frontend` (build) y `e2e`. El job `e2e` construye la **misma imagen que se despliega** y ejecuta pytest y Playwright contra ella. Los cuatro jobs pasaron el 2026-11-01 ([run](https://github.com/JuanSGarciaC/integrador-webhooks/actions/runs/41333053308)).
+- CI (GitHub Actions) tiene cinco jobs: `backend`, `contract`, `frontend` (build), `e2e` y `e2e-triaje`. El job `e2e` construye la **misma imagen que se despliega** y ejecuta pytest y Playwright contra ella; `e2e-triaje` levanta integrador y triaje juntos y comprueba que un issue llega clasificado y que un reenvío no lo duplica.
 - Matriz detallada en [`docs/test-plan.md`](docs/test-plan.md).
 
 ```powershell

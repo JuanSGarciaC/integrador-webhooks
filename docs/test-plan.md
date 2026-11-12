@@ -36,8 +36,11 @@ Se ejecuta contra la **misma imagen que se despliega**: `docker run ... integrad
 | `GET /api/events` | token incorrecto | `401` | igual | `test_token_incorrecto_401` | ✅ |
 | Panel | token admin guardado | nunca en `localStorage` | igual | Playwright «el token no se guarda en localStorage» | ✅ |
 | `/api/*` fuera de demo | sin token / token malo | `401` | igual | Newman, job `contract` | ✅ |
+| Simular `issue` → worker → triaje-solicitudes (stack de `docker-compose.triaje.yml`) | issue ficticio | `delivered`, intentos `[201]`; la solicitud aparece en triaje, clasificada | igual (local, 2026-11-11) | `test_issue_llega_a_triaje_y_un_reenvio_no_lo_duplica` | ✅ |
+| `POST /api/requests` de triaje | mismo cuerpo y misma `Idempotency-Key` | `200`, mismo id, sin solicitud nueva | igual (local, 2026-11-11) | ídem | ✅ |
+| `POST /webhooks/github` con destino triaje | `push` firmado | `200` «ignorado», sin evento nuevo | igual (local, 2026-11-11) | `test_un_push_se_ignora_y_no_se_guarda` | ✅ |
 
-En CI corre el job `e2e` de `.github/workflows/ci.yml`. Primera ejecución en verde de los cuatro jobs (`backend`, `contract`, `frontend`, `e2e`): [run 41333053308](https://github.com/JuanSGarciaC/integrador-webhooks/actions/runs/41333053308), 2026-11-01.
+En CI corren los jobs `e2e` y `e2e-triaje` (este último contra el stack con triaje) de `.github/workflows/ci.yml`. Primera ejecución en verde de los cuatro jobs (`backend`, `contract`, `frontend`, `e2e`): [run 41333053308](https://github.com/JuanSGarciaC/integrador-webhooks/actions/runs/41333053308), 2026-11-01.
 
 ## Verificación en la demo desplegada (https://integrador-webhooks-demo.onrender.com, 2026-11-01)
 
