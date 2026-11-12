@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { api } from "../api";
 import type { Scenario } from "../types";
-import { HttpCode } from "./shared";
+import Flow, { justCreated } from "../Flow";
+import { HttpCode, useFetch } from "./shared";
 
 // [escenario, botón, explicación, respuestas esperadas del destino (null = sin respuesta), estado final]
 const SCENARIOS: [Scenario, string, string, (number | null)[], string][] = [
@@ -12,15 +13,13 @@ const SCENARIOS: [Scenario, string, string, (number | null)[], string][] = [
   ["rejected", "Rechazado (4xx) → fallidos", "Un 422 es un error permanente: va directo a Fallidos sin reintentar. Un admin puede reprocesarlo.", [422], "Fallido"],
 ];
 
-const FLOW: [string, string][] = [
-  ["Webhook firmado", "GitHub o este simulador"],
-  ["API", "HMAC + idempotencia → 202"],
-  ["Cola (SQLite)", "patrón outbox"],
-  ["Worker", "backoff exponencial + jitter"],
-  ["Destino", "Idempotency-Key"],
+// Con triaje como destino solo tiene sentido un issue: es lo único que triaje sabe clasificar.
+const ISSUE: typeof SCENARIOS = [
+  ["issue", "Issue nuevo → triaje", "Un issue ficticio recién abierto: el integrador envía su título y su cuerpo a triaje-solicitudes, que lo clasifica.", [201], "Entregado"],
 ];
 
-export function Simulate() {
+export function Simulate({ destination, triaje }: { destination: string; triaje: boolean }) {
+  const { data: stats } = useFetch(api.stats, [], 2000);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,6 +28,7 @@ export function Simulate() {
     setError(null);
     try {
       const { id } = await api.simulate(s);
+      justCreated.id = id;
       window.location.hash = `#/events/${id}`;
     } catch (e) {
       setError((e as Error).message);
@@ -41,18 +41,14 @@ export function Simulate() {
     <section aria-labelledby="t">
       <h2 id="t">Simular un webhook</h2>
       <p className="lead">
-        Cada botón crea un evento <code>push</code> ficticio, firmado con HMAC, que entra por el mismo
-        camino que un webhook real de GitHub. El destino simulado se comporta según el escenario y
+        Cada botón crea un evento ficticio, firmado con HMAC, que entra por el mismo
+        camino que un webhook real de GitHub. {triaje ? "El destino es triaje-solicitudes" : "El destino simulado se comporta según el escenario"} y
         podrás seguir cada intento en vivo.
       </p>
-      <ol className="flow panel" aria-label="Recorrido de un evento">
-        {FLOW.map(([title, detail]) => (
-          <li key={title}><strong>{title}</strong><span>{detail}</span></li>
-        ))}
-      </ol>
+      <Flow stats={stats ?? undefined} destination={destination} />
       {error && <p role="alert" className="error">{error}</p>}
       <ul className="scenarios">
-        {SCENARIOS.map(([key, label, help, codes, final]) => (
+        {(triaje ? ISSUE : SCENARIOS).map(([key, label, help, codes, final]) => (
           <li key={key} className="card">
             <button onClick={() => run(key)} disabled={busy} aria-describedby={`h-${key}`}>{label}</button>
             <p id={`h-${key}`}>{help}</p>

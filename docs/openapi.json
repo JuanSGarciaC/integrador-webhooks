@@ -49,10 +49,19 @@
           "demo": {
             "title": "Demo",
             "type": "boolean"
+          },
+          "destination": {
+            "enum": [
+              "mock",
+              "triaje"
+            ],
+            "title": "Destination",
+            "type": "string"
           }
         },
         "required": [
-          "demo"
+          "demo",
+          "destination"
         ],
         "title": "DemoInfo",
         "type": "object"
@@ -124,6 +133,11 @@
             "title": "Next Attempt At",
             "type": "string"
           },
+          "outbound": {
+            "additionalProperties": true,
+            "title": "Outbound",
+            "type": "object"
+          },
           "payload": {
             "title": "Payload",
             "type": "string"
@@ -160,7 +174,8 @@
           "last_error",
           "received_at",
           "delivered_at",
-          "payload"
+          "payload",
+          "outbound"
         ],
         "title": "EventDetail",
         "type": "object"
@@ -321,7 +336,8 @@
               "recover",
               "rate_limit",
               "timeout",
-              "rejected"
+              "rejected",
+              "issue"
             ],
             "title": "Scenario",
             "type": "string"

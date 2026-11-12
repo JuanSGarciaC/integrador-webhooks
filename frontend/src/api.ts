@@ -39,7 +39,7 @@ export const api = {
   event: (id: string) => request<EventDetailData>(`/api/events/${id}`),
   replay: (id: string) => request<EventItem>(`/api/events/${id}/replay`, { method: "POST" }),
   stats: () => request<Stats>("/api/stats"),
-  demo: () => request<{ demo: boolean }>("/api/demo"),
+  demo: () => request<{ demo: boolean; destination: "mock" | "triaje" }>("/api/demo"),
   simulate: (scenario: Scenario) =>
     request<{ id: string; status: Status }>("/api/demo/simulate", {
       method: "POST",

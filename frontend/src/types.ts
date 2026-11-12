@@ -1,4 +1,4 @@
-export type Scenario = "ok" | "recover" | "rate_limit" | "timeout" | "rejected";
+export type Scenario = "ok" | "recover" | "rate_limit" | "timeout" | "rejected" | "issue";
 
 export type Status = "received" | "processing" | "retrying" | "delivered" | "dead";
 
@@ -24,6 +24,7 @@ export interface Attempt {
 
 export interface EventDetailData extends EventItem {
   payload: string;
+  outbound: Record<string, unknown> | null;
   attempt_history: Attempt[];
 }
 

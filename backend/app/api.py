@@ -17,7 +17,7 @@ from app import repository
 from app.auth import admin, reader
 from app.config import Settings
 from app.demo import RateLimiter, build_payload, client_ip
-from app.mapping import SUPPORTED
+from app.mapping import SUPPORTED, TRIAJE, accepts, outbound
 from app.models import Event
 from app.schemas import (AttemptOut, DemoInfo, Detail, EventDetail, EventOut, EventPage, EventType,
                          SimulateIn, StatsOut, Status)
@@ -69,6 +69,9 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
             return _json(400, detail="JSON inválido")
         if not isinstance(payload, dict):
             return _json(400, detail="el cuerpo debe ser un objeto JSON")
+        if not accepts(settings.downstream_format, event_type, payload):
+            # 200 y sin guardar: GitHub no lo marca como fallo y no hace falta un estado nuevo.
+            return _json(200, detail="ignorado: el destino solo recibe issues recién abiertos")
 
         def store():
             with session_factory() as s:
@@ -99,7 +102,9 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
             if ev is None:
                 return _json(404, detail="evento no encontrado")
             data = EventOut.model_validate(ev).model_dump()
-            return EventDetail(**data, payload=ev.payload,
+            sent = outbound(settings.downstream_format, ev.id, ev.event_type, json.loads(ev.payload),
+                            ev.received_at.isoformat())
+            return EventDetail(**data, payload=ev.payload, outbound=sent,
                                attempt_history=[AttemptOut.model_validate(a) for a in ev.attempt_log])
 
     @router.post("/api/events/{event_id}/replay", response_model=EventOut, tags=["events"],
@@ -124,7 +129,8 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
 
     @router.get("/api/demo", response_model=DemoInfo, tags=["demo"])
     def demo_info():
-        return DemoInfo(demo=settings.demo_mode)
+        return DemoInfo(demo=settings.demo_mode,
+                        destination="triaje" if settings.downstream_format == TRIAJE else "mock")
 
     if settings.demo_mode:
         limiter = RateLimiter(settings.demo_rate_per_minute, clock)
@@ -148,7 +154,7 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
             async with room_lock:
                 if not await run_in_threadpool(make_room):
                     return _json(429, detail="demo llena, prueba en un minuto")
-                return await ingest(body, {"x-github-event": "push",
+                return await ingest(body, {"x-github-event": "issues" if data.scenario == "issue" else "push",
                                            "x-github-delivery": str(uuid.uuid4()),
                                            "x-hub-signature-256": sig})
 

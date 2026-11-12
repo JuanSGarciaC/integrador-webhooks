@@ -13,6 +13,7 @@ class Settings:
     client_ip_header: str = ""  # cabecera fiable con la IP real, p. ej. True-Client-IP en Render
     database_url: str = "sqlite:///./webhooks.db"
     downstream_url: str = "http://127.0.0.1:9000/ingest"
+    downstream_format: str = ""  # "" = resumen normalizado; "triaje" = título y cuerpo del issue
     max_body_bytes: int = 1_000_000
     # Política de reintentos (sección 7 del diseño)
     retry_base_seconds: float = 2.0
@@ -42,6 +43,9 @@ def load_settings() -> Settings:
     load_dotenv()
     d = Settings()
     e = os.environ.get
+    fmt = e("DOWNSTREAM_FORMAT", d.downstream_format).strip().lower()
+    if fmt not in ("", "triaje"):  # un valor mal escrito no debe caer en silencio al formato por defecto
+        raise SystemExit(f"DOWNSTREAM_FORMAT desconocido: {fmt}")
     return Settings(
         webhook_secret=e("WEBHOOK_SECRET", d.webhook_secret),
         admin_token=e("ADMIN_TOKEN", d.admin_token),
@@ -52,6 +56,7 @@ def load_settings() -> Settings:
         client_ip_header=e("CLIENT_IP_HEADER", d.client_ip_header),
         database_url=e("DATABASE_URL", d.database_url),
         downstream_url=e("DOWNSTREAM_URL", d.downstream_url),
+        downstream_format=fmt,
         max_body_bytes=int(e("MAX_BODY_BYTES", d.max_body_bytes)),
         retry_base_seconds=float(e("RETRY_BASE_SECONDS", d.retry_base_seconds)),
         retry_factor=float(e("RETRY_FACTOR", d.retry_factor)),

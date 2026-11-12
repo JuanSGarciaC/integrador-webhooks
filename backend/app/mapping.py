@@ -34,3 +34,33 @@ def normalize(event_id: str, event_type: str, payload: dict, received_at: str) -
         "summary": summary,
         "occurred_at": occurred or received_at,
     }
+
+
+TRIAJE = "triaje"  # valor de DOWNSTREAM_FORMAT para entregar a triaje-solicitudes
+
+
+def accepts(fmt: str, event_type: str, payload: dict) -> bool:
+    """Qué se guarda para entregar. Triaje solo clasifica solicitudes: issues recién abiertos."""
+    if fmt != TRIAJE:
+        return event_type in SUPPORTED
+    return event_type == "issues" and payload.get("action") == "opened" and isinstance(payload.get("issue"), dict)
+
+
+def to_triaje(payload: dict) -> dict:
+    """Cuerpo de POST /api/requests de triaje, recortado a sus límites (200 y 4000; cuerpo mínimo 10)."""
+    issue = payload.get("issue") or {}
+    body = str(issue.get("body") or "").strip()
+    if len(body) < 10:
+        body = f"{body} (sin descripción)".strip()
+    return {
+        "subject": str(issue.get("title") or "")[:200],
+        "body": body[:4000],
+        "requester": (payload.get("sender") or {}).get("login") or "github",
+    }
+
+
+def outbound(fmt: str, event_id: str, event_type: str, payload: dict, received_at: str) -> dict:
+    """Lo que el worker envía al destino; el detalle del panel muestra lo mismo."""
+    if fmt == TRIAJE:
+        return to_triaje(payload)
+    return normalize(event_id, event_type, payload, received_at)
