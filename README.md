@@ -173,7 +173,7 @@ Valores por defecto: base 2 s, factor 2, tope 5 min, jitter completo. Viven en `
 | E2E conexión | `tests_e2e/test_triaje_e2e.py` contra integrador + triaje (`docker-compose.triaje.yml`) | **real** | 2 pruebas pasan |
 
 - Sin prueba unitaria: `app/main.py` y el bucle `run_forever` del worker. Los cubren los E2E, que arrancan la imagen real.
-- CI (GitHub Actions) tiene cinco jobs: `backend`, `contract`, `frontend` (build), `e2e` y `e2e-triaje`. El job `e2e` construye la **misma imagen que se despliega** y ejecuta pytest y Playwright contra ella; `e2e-triaje` levanta integrador y triaje juntos y comprueba que un issue llega clasificado y que un reenvío no lo duplica.
+- CI (GitHub Actions) tiene cinco jobs: `backend`, `contract`, `frontend` (build), `e2e` y `e2e-triaje`. El job `e2e` construye la **misma imagen que se despliega** y ejecuta pytest y Playwright contra ella; `e2e-triaje` levanta integrador y triaje juntos y comprueba que un issue llega clasificado y que un reenvío no lo duplica. Los cinco jobs pasaron el 2026-11-12 ([run](https://github.com/JuanSGarciaC/integrador-webhooks/actions/runs/43261756355)).
 - Matriz detallada en [`docs/test-plan.md`](docs/test-plan.md).
 
 ```powershell
