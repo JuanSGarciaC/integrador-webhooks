@@ -95,3 +95,30 @@ jobs:
         with:
           name: playwright-report
           path: frontend/playwright-report
+
+  e2e-triaje:
+    # Conexión real: integrador + triaje-solicitudes (otro repositorio, fijado a un commit en el compose).
+    runs-on: ubuntu-latest
+    needs: backend
+    env:
+      WEBHOOK_SECRET: e2e-secret
+      ADMIN_TOKEN: e2e-admin
+      DEMO_RATE_PER_MINUTE: 1000
+      E2E_BASE_URL: http://127.0.0.1:8080
+      TRIAJE_URL: http://127.0.0.1:8081
+    steps:
+      - uses: actions/checkout@v7
+      - name: Levantar integrador y triaje
+        run: |
+          docker compose -f docker-compose.triaje.yml up -d --build --wait
+          for i in $(seq 1 30); do curl -sf localhost:8080/health && break || sleep 1; done
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements.txt
+      - name: Issue → integrador → triaje, sin duplicados
+        working-directory: backend
+        run: pytest tests_e2e/test_triaje_e2e.py -v
+      - name: Logs
+        if: failure()
+        run: docker compose -f docker-compose.triaje.yml logs
