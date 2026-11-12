@@ -24,7 +24,7 @@ export interface Attempt {
 
 export interface EventDetailData extends EventItem {
   payload: string;
-  outbound: Record<string, unknown> | null;
+  outbound: Record<string, unknown>;
   attempt_history: Attempt[];
 }
 

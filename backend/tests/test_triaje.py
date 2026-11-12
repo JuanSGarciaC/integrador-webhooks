@@ -92,3 +92,39 @@ def test_formato_desconocido_no_arranca(monkeypatch):
     monkeypatch.setenv("DOWNSTREAM_FORMAT", "triage")
     with pytest.raises(SystemExit):
         load_settings()
+
+
+def test_mapeo_rellena_titulo_y_usuario_por_debajo_del_minimo_de_triaje():
+    corto = to_triaje({"issue": {"number": 9, "title": "QA", "body": "Texto suficientemente largo."}, "sender": {"login": "a"}})
+    assert corto["subject"] == "Issue #9: QA" and corto["requester"] == "github"
+    assert to_triaje({"issue": {"number": 9, "title": None}})["subject"] == "Issue #9:"
+
+
+def test_mapeo_no_falla_con_tipos_inesperados():
+    raro = to_triaje({"issue": "x", "sender": "y"})
+    assert raro["requester"] == "github" and len(raro["body"]) >= 10
+    assert to_triaje({"issue": {"number": 1, "title": 123, "body": ["a"]}, "sender": {"login": 5}})["requester"] == "github"
+
+
+def test_outbound_en_triaje_no_disfraza_eventos_que_no_son_issues():
+    push = {"ref": "refs/heads/main", "commits": [{}], "repository": {"full_name": "yo/r"}, "sender": {"login": "ana"}}
+    assert outbound("triaje", "e1", "push", push, "t")["summary"] == "1 commit(s) a refs/heads/main"
+
+
+def test_detalle_no_da_500_con_payload_que_no_se_puede_mapear(client):
+    raro = {"ref": "r", "commits": [], "repository": "no-es-un-objeto", "sender": {"login": "ana"}}
+    event_id = post_webhook(client, raro).json()["id"]
+    r = client.get(f"/api/events/{event_id}")
+    assert r.status_code == 200 and r.json()["outbound"] == {}
+
+
+def test_simular_otro_escenario_con_destino_triaje_da_422_y_no_guarda(make_client, session_factory):
+    demo = make_client(demo_mode=True, downstream_format="triaje")
+    assert demo.post("/api/demo/simulate", json={"scenario": "ok"}).status_code == 422
+    assert stored(session_factory) == []
+
+
+def test_lo_ignorado_queda_en_el_log(triaje, caplog):
+    with caplog.at_level("INFO", logger="integrador"):
+        post_webhook(triaje, delivery="d-log")
+    assert any('"ignorado"' in m and "d-log" in m for m in caplog.messages)

@@ -49,14 +49,16 @@ export default function Flow({ event, stats, destination }: Props) {
   const [edge, setEdge] = useState<EdgeId | null>(null);
   const [now, setNow] = useState(Date.now);
 
-  const status = event?.status;
   const attempts = event?.attempts ?? 0;
+  // Un reproceso deja el evento en retrying con 0 intentos: para el lienzo está en la cola, sin fallo previo.
+  const status = event?.status === "retrying" && attempts === 0 ? "received" : event?.status;
 
   useEffect(() => {
     if (!event) return;
     const key = `${status}:${attempts}`;
     const first = seen.current === "";
     if (seen.current === key) return;
+    const wasAtWorker = seen.current.startsWith("processing"); // el sondeo ya lo vio salir de la cola
     seen.current = key;
     const route: EdgeId[] = [];
     if (first) {
@@ -64,7 +66,7 @@ export default function Flow({ event, stats, destination }: Props) {
       route.push("in_api", "api_q");
     }
     if (status !== "received") {
-      route.push("q_w");
+      if (!wasAtWorker) route.push("q_w");
       const end = status && END[status];
       if (end) route.push(end);
     } else if (!first) return; // reproceso: vuelve a la cola sin recorrido
@@ -82,6 +84,7 @@ export default function Flow({ event, stats, destination }: Props) {
       if (f >= 1) {
         const next = queue.current.shift();
         if (!next) {
+          justCreated.id = ""; // al reabrir este evento ya no se repite la entrada
           raf.current = 0;
           return setEdge(null);
         }
@@ -122,7 +125,7 @@ export default function Flow({ event, stats, destination }: Props) {
     busy = TARGET[edge];
     caption = edge === "in_api" || edge === "api_q"
       ? "Webhook recibido: se comprueba la firma y se guarda en la cola antes de responder 202."
-      : `Intento ${Math.max(1, attempts)}: el worker lo toma de la cola y llama al destino.`;
+      : `Intento ${status === "processing" ? attempts + 1 : Math.max(1, attempts)}: el worker lo toma de la cola y llama al destino.`;
   } else if (event) {
     const last = event.attempt_history.at(-1);
     const code = last ? (last.http_status ?? "sin respuesta (timeout)") : "";
@@ -133,12 +136,12 @@ export default function Flow({ event, stats, destination }: Props) {
       delivered: ["in", "api", "q", "w", "d"],
       dead: ["in", "api", "q", "w", "f"],
     };
-    done[event.status].forEach((n) => lit.add(n));
+    done[status!].forEach((n) => lit.add(n));
     (["in_api", "api_q"] as EdgeId[]).forEach((id) => (share[id] = 0.3));
-    if (event.status === "processing") { busy = "w"; flowing.add("q_w"); }
-    if (event.status === "retrying") { waiting = true; flowing.add("w_q"); }
-    if (event.status === "delivered") share.q_w = share.w_d = 0.3;
-    if (event.status === "dead") share.q_w = share.w_f = 0.3;
+    if (status === "processing") { busy = "w"; flowing.add("q_w"); }
+    if (status === "retrying") { waiting = true; flowing.add("w_q"); }
+    if (status === "delivered") share.q_w = share.w_d = 0.3;
+    if (status === "dead") share.q_w = share.w_f = 0.3;
     caption = {
       received: "En la cola: el worker lo tomará en su próximo ciclo.",
       processing: `Intento ${attempts + 1} en curso.`,
@@ -147,7 +150,7 @@ export default function Flow({ event, stats, destination }: Props) {
       dead: typeof code === "number" && code < 500 && code !== 429
         ? `El destino respondió ${code}: es un error permanente y no se reintenta. Un admin puede reprocesarlo.`
         : `Se agotaron los ${attempts} intentos. Un admin puede reprocesarlo.`,
-    }[event.status];
+    }[status!];
   } else if (by && total > 0) {
     const inFlight = by.received + by.processing + by.retrying;
     share.in_api = share.api_q = share.q_w = 1;
@@ -164,13 +167,17 @@ export default function Flow({ event, stats, destination }: Props) {
   }
 
   const cls = (n: NodeId) => `node n-${n} ${busy === n ? "busy" : lit.has(n) ? "lit" : ""}`;
-  const wait = event?.status === "retrying" && !edge
-    ? Math.max(0, (new Date(event.next_attempt_at + "Z").getTime() - now) / 1000)
+  // La espera total sale de dos horas del servidor; el reloj del navegador solo la descuenta, con ese tope.
+  const ms = (iso: string) => new Date(iso + "Z").getTime();
+  const lastAt = event?.attempt_history.at(-1)?.attempted_at;
+  const wait = event && status === "retrying" && !edge && lastAt
+    ? Math.min(ms(event.next_attempt_at) - ms(lastAt), Math.max(0, ms(event.next_attempt_at) - now)) / 1000
     : null;
 
   return (
     <section className="flow glow" aria-label={event ? "Recorrido de este evento" : "Recorrido de los eventos"}>
-      <div className="flow-scroll">
+      {/* En pantalla estrecha el lienzo se desplaza: enfocable para poder hacerlo con el teclado. */}
+      <div className="flow-scroll" tabIndex={0} role="group" aria-label="Lienzo, desplazable en horizontal">
         <div className="flow-stage">
           <svg viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
             <defs>
@@ -211,7 +218,7 @@ export default function Flow({ event, stats, destination }: Props) {
           <div className={`${cls("q")} ${waiting && !edge ? "waiting" : ""}`} style={at(520, 105)}>
             <span className="node-label">Cola</span>
             {event
-              ? <strong className="node-title">{wait !== null ? `reintenta en ${fmtSeconds(wait)}` : event.status === "received" && !edge ? "en espera" : "outbox"}</strong>
+              ? <strong className="node-title">{wait !== null ? `reintenta en ${fmtSeconds(wait)}` : status === "received" && !edge ? "en espera" : "outbox"}</strong>
               : <strong className="node-count">{by ? by.received + by.retrying : 0}</strong>}
             <span className="node-sub">{event ? "la base de datos es la cola" : `${by?.retrying ?? 0} esperando reintento`}</span>
           </div>
@@ -233,7 +240,7 @@ export default function Flow({ event, stats, destination }: Props) {
           <a className={cls("f")} style={at(1000, 255)} href="#/dead">
             <span className="node-label">Fallidos</span>
             {event
-              ? <strong className="node-title">{event.status === "dead" && !edge ? "espera reproceso" : "sin fallo"}</strong>
+              ? <strong className="node-title">{status === "dead" && !edge ? "espera reproceso" : "sin fallo"}</strong>
               : <strong className="node-count">{by?.dead ?? 0}</strong>}
             <span className="node-sub">reproceso manual (admin)</span>
           </a>

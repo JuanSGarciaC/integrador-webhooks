@@ -59,12 +59,10 @@ export function EventDetail({ id, destination }: { id: string; destination: stri
           ))}
         </ol>
       )}
-      {ev.outbound && (
-        <details>
-          <summary>Enviado al destino</summary>
-          <pre>{JSON.stringify(ev.outbound, null, 2)}</pre>
-        </details>
-      )}
+      <details>
+        <summary>Enviado al destino</summary>
+        <pre>{JSON.stringify(ev.outbound, null, 2)}</pre>
+      </details>
       <details>
         <summary>Payload original</summary>
         <pre>{ev.payload}</pre>

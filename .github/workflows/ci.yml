@@ -112,6 +112,7 @@ jobs:
         run: |
           docker compose -f docker-compose.triaje.yml up -d --build --wait
           for i in $(seq 1 30); do curl -sf localhost:8080/health && break || sleep 1; done
+          curl -sf localhost:8080/health  # si nunca respondió, el paso falla aquí
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"

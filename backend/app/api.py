@@ -71,6 +71,7 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
             return _json(400, detail="el cuerpo debe ser un objeto JSON")
         if not accepts(settings.downstream_format, event_type, payload):
             # 200 y sin guardar: GitHub no lo marca como fallo y no hace falta un estado nuevo.
+            log.info(json.dumps({"msg": "ignorado", "delivery_id": delivery_id, "event_type": event_type}))
             return _json(200, detail="ignorado: el destino solo recibe issues recién abiertos")
 
         def store():
@@ -102,8 +103,11 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
             if ev is None:
                 return _json(404, detail="evento no encontrado")
             data = EventOut.model_validate(ev).model_dump()
-            sent = outbound(settings.downstream_format, ev.id, ev.event_type, json.loads(ev.payload),
-                            ev.received_at.isoformat())
+            try:
+                sent = outbound(settings.downstream_format, ev.id, ev.event_type, json.loads(ev.payload),
+                                ev.received_at.isoformat())
+            except (AttributeError, TypeError):  # payload firmado pero con tipos inesperados
+                sent = {}
             return EventDetail(**data, payload=ev.payload, outbound=sent,
                                attempt_history=[AttemptOut.model_validate(a) for a in ev.attempt_log])
 
@@ -148,6 +152,8 @@ def create_app(settings: Settings, session_factory: sessionmaker, clock: Callabl
         async def simulate(data: SimulateIn, request: Request):
             if not limiter.allow(client_ip(request, settings.client_ip_header)):
                 return _json(429, detail="demasiadas simulaciones, espera un minuto")
+            if settings.downstream_format == TRIAJE and data.scenario != "issue":
+                return _json(422, detail="con triaje como destino solo existe el escenario issue")
             body = build_payload(data.scenario)
             sig = "sha256=" + hmac.new(settings.webhook_secret.encode(), body,
                                        hashlib.sha256).hexdigest()

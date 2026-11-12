@@ -166,7 +166,7 @@ Valores por defecto: base 2 s, factor 2, tope 5 min, jitter completo. Viven en `
 
 | Capa | Qué | Reloj | Resultado medido (2026-11-11, local) |
 |---|---|---|---|
-| Unitarias e integración | `backend/tests/` con `pytest` | virtual (`FakeClock`, jitter fijo, sin `sleep`) | **109 pruebas** y **94 % de cobertura de línea** |
+| Unitarias e integración | `backend/tests/` con `pytest` | virtual (`FakeClock`, jitter fijo, sin `sleep`) | **115 pruebas** y **94 % de cobertura de línea** |
 | Contrato | Newman, `docs/postman/` y `--check` de `openapi.json` | real | 13 peticiones, 13 aserciones, 0 fallos |
 | E2E API | `backend/tests_e2e/` contra el contenedor | **real** | 9 pruebas pasan |
 | E2E panel | Playwright, `frontend/e2e/` contra el contenedor | **real** | 3 pruebas pasan |

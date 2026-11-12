@@ -47,20 +47,29 @@ def accepts(fmt: str, event_type: str, payload: dict) -> bool:
 
 
 def to_triaje(payload: dict) -> dict:
-    """Cuerpo de POST /api/requests de triaje, recortado a sus límites (200 y 4000; cuerpo mínimo 10)."""
-    issue = payload.get("issue") or {}
+    """Cuerpo de POST /api/requests de triaje, dentro de sus límites (asunto 3-200, cuerpo 10-4000,
+    solicitante 2-120). Lo que queda por debajo del mínimo se rellena: si no, triaje respondería 422
+    y el evento acabaría en fallidos sin arreglo posible. Tolera tipos inesperados en el payload."""
+    issue = payload.get("issue")
+    issue = issue if isinstance(issue, dict) else {}
+    sender = payload.get("sender")
+    login = sender.get("login") if isinstance(sender, dict) else None
+    title = str(issue.get("title") or "").strip()
+    if len(title) < 3:
+        title = f"Issue #{issue.get('number')}: {title}".strip()
     body = str(issue.get("body") or "").strip()
     if len(body) < 10:
         body = f"{body} (sin descripción)".strip()
     return {
-        "subject": str(issue.get("title") or "")[:200],
+        "subject": title[:200],
         "body": body[:4000],
-        "requester": (payload.get("sender") or {}).get("login") or "github",
+        "requester": login[:120] if isinstance(login, str) and len(login) >= 2 else "github",
     }
 
 
 def outbound(fmt: str, event_id: str, event_type: str, payload: dict, received_at: str) -> dict:
-    """Lo que el worker envía al destino; el detalle del panel muestra lo mismo."""
-    if fmt == TRIAJE:
+    """Lo que el worker envía al destino; el detalle del panel muestra lo mismo.
+    Un evento que triaje no acepta (guardado antes de cambiar de formato) conserva el resumen."""
+    if fmt == TRIAJE and accepts(fmt, event_type, payload):
         return to_triaje(payload)
     return normalize(event_id, event_type, payload, received_at)
