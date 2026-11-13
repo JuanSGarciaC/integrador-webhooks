@@ -15,6 +15,7 @@ class SimulateIn(BaseModel):
 
 class DemoInfo(BaseModel):
     demo: bool
+    destination: Literal["mock", "triaje"]
 
 
 class AttemptOut(BaseModel):
@@ -41,6 +42,7 @@ class EventOut(BaseModel):
 
 class EventDetail(EventOut):
     payload: str
+    outbound: dict  # lo que el worker envía al destino para este evento
     attempt_history: list[AttemptOut] = []
 
 

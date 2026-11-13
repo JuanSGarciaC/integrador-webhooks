@@ -57,7 +57,7 @@ def test_simulate_no_existe_fuera_de_demo(make_client):
 @pytest.mark.parametrize("flag", [False, True])
 def test_demo_info_es_publico(make_client, flag):
     r = make_client(demo_mode=flag).get("/api/demo")
-    assert r.status_code == 200 and r.json() == {"demo": flag}
+    assert r.status_code == 200 and r.json()["demo"] is flag
 
 
 def test_simular_con_token_incorrecto_401(make_client):

@@ -1,0 +1,25 @@
+# Opcional: el integrador entrega issues de GitHub a triaje-solicitudes en lugar del destino simulado.
+#   $env:WEBHOOK_SECRET="algo"; $env:ADMIN_TOKEN="otro"
+#   docker compose -f docker-compose.triaje.yml up -d --build --wait
+# Integrador en http://localhost:8080 (Simular → «Issue nuevo → triaje») y triaje en http://localhost:8081.
+# Si los puertos están ocupados: INTEGRADOR_PORT y TRIAJE_PORT.
+# Triaje usa su clasificador de reglas (sin API de pago). Sin esto, todo sigue igual: `docker run` de la imagen.
+services:
+  triaje:
+    # Otro repositorio, fijado a un commit: un cambio allí no rompe este compose.
+    build: https://github.com/JuanSGarciaC/triaje-solicitudes.git#ab8b9cbbcbf2a9db3991de6788e28d1016c0439e
+    environment:
+      LLM_PROVIDER: mock
+    ports: ["${TRIAJE_PORT:-8081}:8000"]
+  integrador:
+    build: .
+    environment:
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:?define WEBHOOK_SECRET}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?define ADMIN_TOKEN}
+      DOWNSTREAM_URL: http://triaje:8000/api/requests
+      DOWNSTREAM_FORMAT: triaje
+      DEMO_RATE_PER_MINUTE: ${DEMO_RATE_PER_MINUTE:-10}
+    ports: ["${INTEGRADOR_PORT:-8080}:8080"]
+    depends_on:
+      triaje:
+        condition: service_healthy

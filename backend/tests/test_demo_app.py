@@ -17,7 +17,7 @@ def test_panel_servido_en_raiz(panel):
 
 def test_estaticos_no_tapan_api(panel):
     assert panel.get("/api/events").json()["total"] == 0
-    assert panel.get("/api/demo").json() == {"demo": True}
+    assert panel.get("/api/demo").json()["demo"] is True
     assert panel.get("/health").json() == {"status": "ok"}
     assert panel.get("/docs").status_code == 200
     assert post_webhook(panel).status_code == 202

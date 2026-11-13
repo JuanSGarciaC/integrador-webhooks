@@ -29,11 +29,15 @@ const NAV = [
 export default function App() {
   const route = useRoute();
   const [demo, setDemo] = useState(false);
-  useEffect(() => { api.demo().then((d) => setDemo(d.demo), () => setDemo(false)); }, []);
+  const [triaje, setTriaje] = useState(false);
+  useEffect(() => {
+    api.demo().then((d) => { setDemo(d.demo); setTriaje(d.destination === "triaje"); }, () => setDemo(false));
+  }, []);
+  const destination = triaje ? "Triaje de solicitudes" : "Simulado";
   const section = route[0] ?? (demo ? "simulate" : "events");
   let page;
-  if (section === "simulate" && demo) page = <Simulate />;
-  else if (section === "events" && route[1]) page = <EventDetail id={route[1]} />;
+  if (section === "simulate" && demo) page = <Simulate destination={destination} triaje={triaje} />;
+  else if (section === "events" && route[1]) page = <EventDetail key={route[1]} id={route[1]} destination={destination} />;
   else if (section === "dead") page = <DeadLetters />;
   else if (section === "stats") page = <Stats />;
   else page = <Events />;

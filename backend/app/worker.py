@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from app import repository
 from app.config import Settings, load_settings
 from app.database import init_db, make_engine, make_session_factory
-from app.mapping import normalize
+from app.mapping import outbound
 from app.retry import Outcome, backoff_delay, classify, parse_retry_after
 
 log = logging.getLogger("worker")
@@ -25,7 +25,8 @@ def utc_now() -> datetime:
 
 def _deliver(http: httpx.Client, settings: Settings, ev, now: datetime):
     """POST al destino. Devuelve (http_status|None, error|None, retry_after_header|None, ms)."""
-    body = normalize(ev.id, ev.event_type, json.loads(ev.payload), ev.received_at.isoformat())
+    body = outbound(settings.downstream_format, ev.id, ev.event_type, json.loads(ev.payload),
+                    ev.received_at.isoformat())
     t0 = time.perf_counter()
     try:
         r = http.post(settings.downstream_url, json=body, headers={"Idempotency-Key": ev.id},

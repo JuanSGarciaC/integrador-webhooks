@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { api } from "../api";
+import Flow from "../Flow";
 import { ErrorNote, fmtDate, fmtSeconds, HttpCode, outcome, StatusBadge, useFetch } from "./shared";
 
 const seconds = (a: string, b: string) => (new Date(b + "Z").getTime() - new Date(a + "Z").getTime()) / 1000;
 
-export function EventDetail({ id }: { id: string }) {
+export function EventDetail({ id, destination }: { id: string; destination: string }) {
   // En vivo (1 s) mientras el evento está en curso; al llegar a un estado final deja de sondear.
   const [live, setLive] = useState(true);
   const { data: ev, error } = useFetch(
@@ -22,6 +23,7 @@ export function EventDetail({ id }: { id: string }) {
         <h2 id="t">Evento <code>{ev.event_type}</code> <StatusBadge status={ev.status} /></h2>
         {live && <span className="pill live" role="status">En vivo</span>}
       </div>
+      <Flow event={ev} destination={destination} />
       <dl className="facts">
         <div className="card"><dt>Delivery ID</dt><dd className="mono">{ev.delivery_id}</dd></div>
         <div className="card"><dt>Recibido</dt><dd>{fmtDate(ev.received_at)}</dd></div>
@@ -57,6 +59,10 @@ export function EventDetail({ id }: { id: string }) {
           ))}
         </ol>
       )}
+      <details>
+        <summary>Enviado al destino</summary>
+        <pre>{JSON.stringify(ev.outbound, null, 2)}</pre>
+      </details>
       <details>
         <summary>Payload original</summary>
         <pre>{ev.payload}</pre>

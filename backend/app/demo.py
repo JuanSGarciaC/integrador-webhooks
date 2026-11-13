@@ -6,11 +6,19 @@ from typing import Callable, Literal
 
 from fastapi import Request
 
-Scenario = Literal["ok", "recover", "rate_limit", "timeout", "rejected"]
+Scenario = Literal["ok", "recover", "rate_limit", "timeout", "rejected", "issue"]
 
 
 def build_payload(scenario: str) -> bytes:
-    """Payload `push` ficticio: sin datos de personas reales."""
+    """Payload ficticio (`push`, o `issues` en el escenario issue): sin datos de personas reales."""
+    if scenario == "issue":
+        return json.dumps({
+            "action": "opened",
+            "issue": {"number": 1, "title": "No puedo entrar a mi cuenta",
+                      "body": "Mi cuenta está bloqueada desde ayer y no puedo entrar al sistema."},
+            "repository": {"full_name": "demo/issue"},
+            "sender": {"login": "visitante-demo"},
+        }).encode()
     return json.dumps({
         "ref": "refs/heads/main",
         "commits": [{}],

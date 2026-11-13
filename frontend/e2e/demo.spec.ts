@@ -14,6 +14,10 @@ test("simular recuperación muestra 3 intentos y Entregado", async ({ page }) =>
   await expect(intentos).toHaveCount(3);
   await expect(intentos.nth(0)).toContainText("HTTP 503");
   await expect(intentos.nth(2)).toContainText("HTTP 200");
+  // El lienzo cuenta lo mismo con palabras y deja encendido el destino.
+  const lienzo = page.getByRole("region", { name: "Recorrido de este evento" });
+  await expect(lienzo).toContainText("Entregado al intento 3, tras 2 fallo(s).");
+  await expect(lienzo.locator(".n-d")).toHaveClass(/lit/);
 });
 
 test("reprocesar requiere admin y con token entrega el evento", async ({ page }) => {
@@ -25,7 +29,7 @@ test("reprocesar requiere admin y con token entrega el evento", async ({ page })
   await expect(estado(page)).toContainText("Fallido", { timeout: 60_000 });
   const eventId = page.url().split("/").pop()!;
 
-  await page.getByRole("link", { name: "Fallidos" }).click();
+  await page.getByRole("navigation").getByRole("link", { name: "Fallidos" }).click(); // el lienzo tiene otro enlace igual
   const fila = page.getByRole("row").filter({ has: page.locator(`a[href="#/events/${eventId}"]`) });
   await expect(fila.getByRole("button", { name: "Requiere admin" })).toBeDisabled();
 
