@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/JuanSGarciaC/integrador-webhooks/actions/workflows/ci.yml/badge.svg)](https://github.com/JuanSGarciaC/integrador-webhooks/actions/workflows/ci.yml)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
-![Licencia MIT](https://img.shields.io/badge/licencia-MIT-green)
+![Licencia: todos los derechos reservados](https://img.shields.io/badge/licencia-todos%20los%20derechos%20reservados-lightgrey)
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688)
 ![React](https://img.shields.io/badge/React-panel-61dafb)
 
@@ -180,4 +180,4 @@ Detalle y alternativas descartadas en [`docs/architecture.md`](docs/architecture
 Con asistentes de IA. Yo revisé el diseño, ejecuté las pruebas y la medición 
 
 ## Licencia
-[MIT](LICENSE) © 2026 JuanSGarciaC
+Todos los derechos reservados. El código se publica para consulta como parte de mi portafolio: puedes leerlo, pero no usarlo, copiarlo, modificarlo ni distribuirlo sin mi autorización por escrito. Ver [LICENSE](LICENSE).
