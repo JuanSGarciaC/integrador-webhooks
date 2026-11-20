@@ -116,3 +116,15 @@ test("en móvil (390 px) el menú cabe entero y ninguna entrada se parte", async
     expect(caja.height).toBeLessThan(40); // una sola línea
   }
 });
+
+test.describe("sin JavaScript", () => {
+  test.use({ javaScriptEnabled: false });
+  test("explica el proyecto y enlaza al README", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Integrador de webhooks" })).toBeVisible();
+    // Con cadena, getByText no encontró el texto dentro del <noscript>; con regex sí.
+    await expect(page.getByText(/necesita JavaScript/)).toBeVisible();
+    await expect(page.getByRole("link", { name: /README/ }))
+      .toHaveAttribute("href", "https://github.com/JuanSGarciaC/integrador-webhooks#readme");
+  });
+});
