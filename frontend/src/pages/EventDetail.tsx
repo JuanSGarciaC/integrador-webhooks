@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { api } from "../api";
 import Flow from "../Flow";
+import { Terminal } from "../Terminal";
+import { terminalLines } from "../terminalLines";
 import { ErrorNote, fmtDate, fmtSeconds, HttpCode, outcome, StatusBadge, useFetch } from "./shared";
 
 const seconds = (a: string, b: string) => (new Date(b + "Z").getTime() - new Date(a + "Z").getTime()) / 1000;
@@ -24,6 +26,7 @@ export function EventDetail({ id, destination }: { id: string; destination: stri
         {live && <span className="pill live" role="status">En vivo</span>}
       </div>
       <Flow event={ev} destination={destination} />
+      <Terminal lines={terminalLines(ev)} />
       <dl className="facts">
         <div className="card"><dt>Delivery ID</dt><dd className="mono">{ev.delivery_id}</dd></div>
         <div className="card"><dt>Recibido</dt><dd>{fmtDate(ev.received_at)}</dd></div>

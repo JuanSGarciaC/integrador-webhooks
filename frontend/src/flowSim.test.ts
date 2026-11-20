@@ -131,6 +131,22 @@ describe("step: el tiempo lo da quien llama", () => {
     assert.equal(sim.pile, 3);
   });
 
+  test("con varios intentos acumulados va más rápido para alcanzar a los datos", () => {
+    const legs = attemptLegs([503, 503, 200], "delivered", false);
+    const total = legs.reduce((t, l) => t + (l.type === "path" || l.type === "goto" ? l.dur : 0), 0);
+    const sim = createSim();
+    spawn(sim, legs);
+    run(sim, total * 0.75);
+    assert.equal(sim.particles.length, 0, "terminó antes de la suma de duraciones");
+  });
+
+  test("con un solo intento pendiente va a velocidad normal", () => {
+    const sim = createSim();
+    spawn(sim, attemptLegs([200], "delivered", true));
+    run(sim, 400);
+    assert.equal(sim.particles.length, 1);
+  });
+
   test("un paso enorme (pestaña dormida) no deja la partícula a medias", () => {
     const sim = createSim();
     spawn(sim, attemptLegs([200], "delivered", true));

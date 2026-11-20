@@ -173,4 +173,13 @@ a.node:hover { border-color: var(--c); }
 .flow-caption { margin: 0; padding: .7rem 1.25rem; border-top: 1px solid var(--border); background: rgb(6 9 19 / .6); font-size: .92rem;
   color: var(--muted); min-height: 2.9rem; }
 
+/* Terminal del detalle: el texto pendiente ocupa su sitio sin verse */
+.terminal { margin: -8px 0 8px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: rgb(3 5 12 / .75); font: 12.5px/1.6 ui-monospace, "Cascadia Code", Consolas, monospace; overflow-x: auto; }
+.t-line { white-space: pre; }
+.t-pending { color: transparent; }
+.t-muted { color: var(--muted); } .t-info { color: var(--accent); } .t-ok { color: var(--ok); }
+.t-retry { color: var(--warn); } .t-fail { color: var(--bad); }
+.caret { display: inline-block; width: .6em; height: 1.1em; margin-bottom: -.2em; background: currentColor; animation: pulse .8s steps(1) infinite; }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

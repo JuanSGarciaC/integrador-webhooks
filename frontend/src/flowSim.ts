@@ -136,8 +136,12 @@ export function step(sim: Sim, dt: number, sample: Sampler): string[] {
   return started;
 }
 
+// Tramos de un intento completo con rebote (goto, q_w, w_d, hit, w_d, goto, w_q, park).
+const ONE_ATTEMPT = 8;
+
 function advance(sim: Sim, p: Particle, dt: number, sample: Sampler, started: string[]) {
-  let left = dt;
+  // Si el sondeo trajo varios intentos de golpe, la animación va al doble hasta alcanzar a los datos.
+  let left = p.legs.length - p.leg > ONE_ATTEMPT ? dt * 2 : dt;
   while (!p.done && p.leg < p.legs.length) {
     const leg = p.legs[p.leg];
     if (p.t === 0 && left <= 0) break; // sin tiempo en este paso: el tramo empieza en el siguiente
