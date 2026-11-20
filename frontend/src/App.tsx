@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { TokenField } from "./TokenField";
 import { Simulate } from "./pages/Simulate";
 import { DeadLetters } from "./pages/DeadLetters";
 import { EventDetail } from "./pages/EventDetail";
 import { Events } from "./pages/Events";
+import { HowItWorks } from "./pages/HowItWorks";
 import { Stats } from "./pages/Stats";
 
-// Enrutado mínimo por hash: #/events, #/events/<id>, #/dead, #/stats
+// Enrutado mínimo por hash: #/events, #/events/<id>, #/dead, #/stats, #/como-funciona
 function useRoute(): string[] {
   const parse = () => window.location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   const [route, setRoute] = useState(parse);
@@ -21,6 +22,7 @@ function useRoute(): string[] {
 
 const NAV = [
   ["simulate", "Simular"],
+  ["como-funciona", "Cómo funciona"],
   ["events", "Eventos"],
   ["dead", "Fallidos"],
   ["stats", "Estadísticas"],
@@ -28,6 +30,14 @@ const NAV = [
 
 export default function App() {
   const route = useRoute();
+  const header = useRef<HTMLElement>(null);
+  // Alto real de la cabecera (cambia si se parte en dos filas): el lienzo fijo de «Cómo funciona» se pega debajo.
+  useEffect(() => {
+    const ro = new ResizeObserver(([e]) =>
+      document.documentElement.style.setProperty("--header-h", `${Math.round(e.target.getBoundingClientRect().height)}px`));
+    ro.observe(header.current!);
+    return () => ro.disconnect();
+  }, []);
   const [demo, setDemo] = useState(false);
   const [triaje, setTriaje] = useState(false);
   useEffect(() => {
@@ -38,6 +48,7 @@ export default function App() {
   let page;
   if (section === "simulate" && demo) page = <Simulate destination={destination} triaje={triaje} />;
   else if (section === "events" && route[1]) page = <EventDetail key={route[1]} id={route[1]} destination={destination} />;
+  else if (section === "como-funciona") page = <HowItWorks destination={destination} demo={demo} />;
   else if (section === "dead") page = <DeadLetters />;
   else if (section === "stats") page = <Stats />;
   else page = <Events />;
@@ -45,7 +56,7 @@ export default function App() {
   return (
     <>
       <a className="skip" href="#main">Saltar al contenido</a>
-      <header>
+      <header ref={header}>
         <a className="brand" href="#/">
           <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true">
             <rect width="32" height="32" rx="8" fill="var(--accent)" />

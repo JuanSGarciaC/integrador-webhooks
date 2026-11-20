@@ -54,3 +54,65 @@ test.describe("A7 · cifras de Estadísticas que cuentan", () => {
     await expect(total.locator("strong [aria-hidden]")).toHaveText((await total.locator("strong .sr-only").textContent())!);
   });
 });
+
+test.describe("C5 · Cómo funciona (scrollytelling con el lienzo)", () => {
+  test("se llega desde el menú y todos los pasos se pueden leer", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("navigation").getByRole("link", { name: "Cómo funciona" }).click();
+    await expect(page.getByRole("heading", { name: "Cómo funciona", level: 2 })).toBeVisible();
+    const pasos = page.locator(".how-steps > li");
+    await expect(pasos).toHaveCount(8);
+    await expect(pasos.first()).toContainText("X-Hub-Signature-256");
+    await expect(page.locator(".how-steps")).toContainText("202 Accepted");
+  });
+
+  test("al bajar, el paso activo cambia y el lienzo ilumina su tramo", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 }); // alto suficiente para el lienzo fijo
+    await page.goto("/#/como-funciona");
+    expect(await page.locator(".how-visual").evaluate((el) => getComputedStyle(el).position)).toBe("sticky");
+    const pasos = page.locator(".how-steps > li");
+    await expect(pasos.first()).toHaveAttribute("aria-current", "step");
+    const lienzo = page.getByRole("region", { name: "Recorrido explicado" });
+    await expect(lienzo.locator(".n-in")).toHaveClass(/lit/);
+
+    const reintento = pasos.filter({ hasText: "espera exponencial" });
+    // Coloca el paso justo bajo el lienzo fijo, donde lo estaría leyendo una persona.
+    await reintento.evaluate((el) => {
+      // Lo que tapa el lienzo ya pegado: cabecera + alto del lienzo (antes de pegarse está más abajo).
+      const cabecera = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--header-h"));
+      const tapado = cabecera + document.querySelector(".how-visual")!.getBoundingClientRect().height;
+      window.scrollBy(0, el.getBoundingClientRect().top - tapado - 20);
+    });
+    await expect(reintento).toHaveAttribute("aria-current", "step");
+    await expect(pasos.first()).not.toHaveAttribute("aria-current", "step");
+    await expect(lienzo.locator(".e-w_q .edge-flow")).toHaveCount(1);
+  });
+
+  test("con movimiento reducido ningún paso queda atenuado", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.setViewportSize({ width: 1280, height: 900 }); // modo fijo, donde se atenúan los pasos inactivos
+    await page.goto("/#/como-funciona");
+    const ultimo = page.locator(".how-steps > li").last();
+    await expect(ultimo).not.toHaveAttribute("aria-current", "step");
+    expect(await ultimo.evaluate((el) => getComputedStyle(el).opacity)).toBe("1");
+  });
+
+  test("en móvil (390 px) el lienzo no queda fijo", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/#/como-funciona");
+    const visual = page.locator(".how-visual");
+    await expect(visual).toBeVisible();
+    expect(await visual.evaluate((el) => getComputedStyle(el).position)).toBe("static");
+  });
+});
+
+test("en móvil (390 px) el menú cabe entero y ninguna entrada se parte", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const enlaces = page.getByRole("navigation").getByRole("link");
+  await expect(enlaces).toHaveCount(5);
+  for (const caja of await enlaces.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON()))) {
+    expect(caja.right).toBeLessThanOrEqual(390);
+    expect(caja.height).toBeLessThan(40); // una sola línea
+  }
+});
