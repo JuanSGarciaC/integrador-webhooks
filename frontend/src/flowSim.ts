@@ -58,6 +58,15 @@ const path = (p: string, from = 0, to = 1, dur = TRAVEL): Leg => ({ type: "path"
 
 export const entryLegs = (): Leg[] => [path("in_api"), path("api_q"), parkQueue];
 
+/** Espera en la cola sin recorrido previo (evento ya existente o reprocesado). */
+export const waitLegs = (): Leg[] => [parkQueue];
+
+/** Nodo en el que está aparcada la partícula al final de sus tramos, si lo está. */
+export const parkedAt = (p: Particle): Pt | null => {
+  const last = p.legs.at(-1);
+  return last?.type === "park" ? last.at : null;
+};
+
 export const processingLegs = (): Leg[] => [{ type: "goto", path: "q_w", t: 0, dur: HOP }, path("q_w"), parkWorker];
 
 /**
@@ -69,12 +78,12 @@ export function attemptLegs(codes: (number | null)[], final: "retrying" | "deliv
   codes.forEach((code, i) => {
     if (i > 0 || !atWorker) legs.push({ type: "goto", path: "q_w", t: 0, dur: HOP }, path("q_w"));
     const result = tone(code);
-    legs.push(path("w_d", 0, 0.9), { type: "hit", tone: result, code });
+    legs.push(path("w_d", 0, 0.8), { type: "hit", tone: result, code });
     if (result === "ok") {
-      legs.push(path("w_d", 0.9, 1, 120), { type: "absorb", tone: "ok" });
+      legs.push(path("w_d", 0.8, 1, 140), { type: "absorb", tone: "ok" });
       return;
     }
-    legs.push(path("w_d", 0.9, 0, BOUNCE)); // rebote de vuelta al worker
+    legs.push(path("w_d", 0.8, 0, BOUNCE)); // rebote de vuelta al worker
     if (i === codes.length - 1 && final === "dead") legs.push(path("w_f"), { type: "pile" });
     else {
       legs.push({ type: "goto", path: "w_q", t: 0, dur: HOP }, path("w_q"));
@@ -90,13 +99,14 @@ export interface Counts { total: number; received: number; processing: number; r
 export function statsLegs(prev: Counts, next: Counts, cap = 6): Leg[][] {
   const up = (k: keyof Counts) => Math.max(0, next[k] - prev[k]);
   const routes: Leg[][] = [];
-  const add = (n: number, legs: () => Leg[]) => {
-    for (let i = 0; i < n && routes.length < cap; i++) routes.push(legs());
+  // La i-ésima del mismo tipo alarga su primer tramo: salen juntas pero se separan por el camino.
+  const add = (n: number, legs: (lag: number) => Leg[]) => {
+    for (let i = 0; i < n && routes.length < cap; i++) routes.push(legs(i * 160));
   };
-  add(up("dead"), () => [path("q_w"), path("w_d", 0, 0.9), { type: "hit", tone: "fail" },
-    path("w_d", 0.9, 0, BOUNCE), path("w_f"), { type: "pile" }]);
-  add(up("delivered"), () => [path("q_w"), path("w_d"), { type: "absorb", tone: "ok" }]);
-  add(up("total"), () => [path("in_api"), path("api_q"), { type: "absorb", tone: "info" }]);
+  add(up("dead"), (lag) => [path("q_w", 0, 1, TRAVEL + lag), path("w_d", 0, 0.8), { type: "hit", tone: "fail" },
+    path("w_d", 0.8, 0, BOUNCE), path("w_f"), { type: "pile" }]);
+  add(up("delivered"), (lag) => [path("q_w", 0, 1, TRAVEL + lag), path("w_d"), { type: "absorb", tone: "ok" }]);
+  add(up("total"), (lag) => [path("in_api", 0, 1, TRAVEL + lag), path("api_q"), { type: "absorb", tone: "info" }]);
   return routes;
 }
 

@@ -164,6 +164,12 @@ describe("statsLegs: solo cambios reales del sondeo", () => {
     assert.ok(routes.length <= 6);
   });
 
+  test("varias del mismo tipo salen escalonadas, no superpuestas", () => {
+    const routes = statsLegs(base, { ...base, total: 13 });
+    const durs = routes.map((r) => (r[0].type === "path" ? r[0].dur : 0));
+    assert.equal(new Set(durs).size, 3);
+  });
+
   test("los conteos que bajan (reproceso) no generan partículas", () => {
     assert.equal(statsLegs(base, { ...base, dead: 1, received: 1 }).length, 0);
   });

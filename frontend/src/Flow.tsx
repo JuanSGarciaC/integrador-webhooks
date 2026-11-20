@@ -1,4 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import FlowCanvas, { createEngine } from "./FlowCanvas";
+import {
+  attemptLegs, createSim, entryLegs, extend, parkedAt, processingLegs, QUEUE, spawn, statsLegs, waitLegs, WORKER,
+  type Counts, type Sampler,
+} from "./flowSim";
 import { fmtSeconds } from "./pages/shared";
 import type { EventDetailData, Stats, Status } from "./types";
 
@@ -23,10 +28,8 @@ const BEHIND: Record<EdgeId, NodeId[]> = {
   in_api: ["in"], api_q: ["in", "api"], q_w: ["in", "api", "q"],
   w_d: ["in", "api", "q", "w"], w_f: ["in", "api", "q", "w"], w_q: ["in", "api"],
 };
-const END: Partial<Record<Status, EdgeId>> = { delivered: "w_d", dead: "w_f", retrying: "w_q" };
 
 const at = (x: number, y: number) => ({ left: `${(x / W) * 100}%`, top: `${(y / H) * 100}%` });
-const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
 /** El simulador anota aquí el evento que acaba de crear: su lienzo arranca desde el webhook. */
 export const justCreated = { id: "" };
@@ -41,11 +44,15 @@ interface Props {
 
 export default function Flow({ event, stats, destination }: Props) {
   const paths = useRef<Partial<Record<EdgeId, SVGPathElement | null>>>({});
-  const dot = useRef<SVGGElement>(null);
-  const queue = useRef<EdgeId[]>([]);
-  const raf = useRef(0);
   const seen = useRef("");
-  // Arista que recorre el punto ahora mismo; null = quieto, el lienzo muestra el estado real.
+  const seenAttempts = useRef(0);
+  const prevCounts = useRef<Counts | null>(null);
+  // Intento que está mostrando el canvas (los datos del sondeo pueden ir por delante de la animación).
+  const shown = useRef(0);
+  // Sin movimiento pedido por el sistema: ni canvas ni simulación, solo el estado real.
+  const [still] = useState(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const [engine] = useState(() => createEngine(createSim()));
+  // Arista que recorre una entrega ahora mismo; null = quieto, el lienzo muestra el estado real.
   const [edge, setEdge] = useState<EdgeId | null>(null);
   const [now, setNow] = useState(Date.now);
 
@@ -53,56 +60,65 @@ export default function Flow({ event, stats, destination }: Props) {
   // Un reproceso deja el evento en retrying con 0 intentos: para el lienzo está en la cola, sin fallo previo.
   const status = event?.status === "retrying" && attempts === 0 ? "received" : event?.status;
 
+  const sample: Sampler = (id, t) => {
+    const path = paths.current[id as EdgeId];
+    if (!path) return { x: 0, y: 0 };
+    const p = path.getPointAtLength(path.getTotalLength() * t);
+    return { x: p.x, y: p.y };
+  };
+
+  // Detalle: cada cambio de estado se traduce en tramos con los códigos reales de los intentos.
   useEffect(() => {
-    if (!event) return;
+    if (!event || still) return;
     const key = `${status}:${attempts}`;
     const first = seen.current === "";
     if (seen.current === key) return;
-    const wasAtWorker = seen.current.startsWith("processing"); // el sondeo ya lo vio salir de la cola
     seen.current = key;
-    const route: EdgeId[] = [];
+    let done = seenAttempts.current;
+    seenAttempts.current = attempts;
+    const { sim } = engine;
+    let p = sim.particles[0];
     if (first) {
-      if (justCreated.id !== event.id) return; // evento ya existente: se muestra tal como está
-      route.push("in_api", "api_q");
-    }
-    if (status !== "received") {
-      if (!wasAtWorker) route.push("q_w");
-      const end = status && END[status];
-      if (end) route.push(end);
-    } else if (!first) return; // reproceso: vuelve a la cola sin recorrido
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    queue.current.push(...route);
-    if (raf.current) return; // ya hay un recorrido en marcha: este tramo espera su turno
-    let t0 = performance.now();
-    let current = queue.current.shift()!;
-    setEdge(current);
-    const tick = (t: number) => {
-      const f = Math.max(0, t - t0) / 480; // la marca del primer frame puede ser anterior a t0
-      const path = paths.current[current]!;
-      const p = path.getPointAtLength(path.getTotalLength() * ease(Math.min(1, f)));
-      dot.current?.setAttribute("transform", `translate(${p.x} ${p.y})`);
-      if (f >= 1) {
-        const next = queue.current.shift();
-        if (!next) {
-          justCreated.id = ""; // al reabrir este evento ya no se repite la entrada
-          raf.current = 0;
-          return setEdge(null);
-        }
-        current = next;
-        t0 = t;
-        setEdge(next);
+      if (justCreated.id !== event.id) {
+        // Evento ya existente: se muestra tal como está, sin recorrido.
+        shown.current = status === "processing" ? attempts + 1 : attempts;
+        if (status === "retrying") spawn(sim, waitLegs(), { x: QUEUE.x - 92, y: QUEUE.y });
+        if (status === "processing") spawn(sim, processingLegs().slice(-1), WORKER);
+        if (status === "dead") sim.pile = 1;
+        return engine.wake();
       }
-      raf.current = requestAnimationFrame(tick);
-    };
-    raf.current = requestAnimationFrame(tick);
+      p = spawn(sim, entryLegs(), sample("in_api", 0));
+      done = 0;
+    }
+    p ??= spawn(sim, waitLegs(), { x: QUEUE.x - 92, y: QUEUE.y });
+    const codes = event.attempt_history.slice(done).map((a) => a.http_status);
+    const atWorker = parkedAt(p) === WORKER;
+    if (status === "delivered" || status === "dead" || status === "retrying") {
+      if (codes.length) extend(p, attemptLegs(codes, status, atWorker));
+    } else if (status === "processing") {
+      if (codes.length) extend(p, attemptLegs(codes, "retrying", atWorker));
+      if (codes.length || !atWorker) extend(p, processingLegs());
+    }
+    engine.wake();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event?.id, status, attempts]);
-  useEffect(() => () => {
-    cancelAnimationFrame(raf.current);
-    raf.current = 0;
-    queue.current = [];
-    seen.current = "";
-  }, []);
+
+  // Resumen: solo salen partículas por lo que cambió entre dos sondeos de /api/stats.
+  useEffect(() => {
+    if (!stats || event || still) return;
+    const counts: Counts = { total: stats.total, ...stats.by_status };
+    const { sim } = engine;
+    if (prevCounts.current) {
+      const cap = matchMedia("(max-width: 600px)").matches ? 3 : 6;
+      for (const legs of statsLegs(prevCounts.current, counts, cap)) spawn(sim, legs, sample((legs[0] as { path: string }).path, 0));
+    }
+    // La pila refleja los fallidos reales menos los que aún van de camino hacia ella.
+    const inFlight = sim.particles.filter((p) => p.legs.at(-1)?.type === "pile").length;
+    sim.pile = Math.max(0, counts.dead - inFlight);
+    prevCounts.current = counts;
+    engine.wake();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stats]);
 
   // Cuenta atrás hasta el siguiente intento: solo corre mientras se espera.
   useEffect(() => {
@@ -123,9 +139,14 @@ export default function Flow({ event, stats, destination }: Props) {
   if (event && edge) {
     BEHIND[edge].forEach((n) => lit.add(n));
     busy = TARGET[edge];
+    const n = Math.max(1, shown.current);
     caption = edge === "in_api" || edge === "api_q"
       ? "Webhook recibido: se comprueba la firma y se guarda en la cola antes de responder 202."
-      : `Intento ${status === "processing" ? attempts + 1 : Math.max(1, attempts)}: el worker lo toma de la cola y llama al destino.`;
+      : edge === "w_q"
+        ? `El intento ${n} falló: vuelve a la cola a esperar con backoff y jitter.`
+        : edge === "w_f"
+          ? `El intento ${n} falló y no se reintenta más: va a la cola de fallidos.`
+          : `Intento ${n}: el worker lo toma de la cola y llama al destino.`;
   } else if (event) {
     const last = event.attempt_history.at(-1);
     const code = last ? (last.http_status ?? "sin respuesta (timeout)") : "";
@@ -173,6 +194,12 @@ export default function Flow({ event, stats, destination }: Props) {
   const wait = event && status === "retrying" && !edge && lastAt
     ? Math.min(ms(event.next_attempt_at) - ms(lastAt), Math.max(0, ms(event.next_attempt_at) - now)) / 1000
     : null;
+  // El canvas dibuja la misma cuenta atrás como un anillo que se cierra alrededor de la cola.
+  useEffect(() => {
+    engine.ring = wait !== null && lastAt
+      ? { until: performance.now() + wait * 1000, total: Math.max(1, ms(event!.next_attempt_at) - ms(lastAt)) }
+      : null;
+  });
 
   return (
     <section className="flow glow" aria-label={event ? "Recorrido de este evento" : "Recorrido de los eventos"}>
@@ -180,11 +207,6 @@ export default function Flow({ event, stats, destination }: Props) {
       <div className="flow-scroll" tabIndex={0} role="group" aria-label="Lienzo, desplazable en horizontal">
         <div className="flow-stage">
           <svg viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
-            <defs>
-              <filter id="halo" x="-300%" y="-300%" width="700%" height="700%">
-                <feGaussianBlur stdDeviation="5" />
-              </filter>
-            </defs>
             {(Object.keys(EDGES) as EdgeId[]).map((id) => (
               <g key={id} className={`edge e-${id}`}>
                 <path
@@ -197,11 +219,21 @@ export default function Flow({ event, stats, destination }: Props) {
                 {flowing.has(id) && <path d={EDGES[id]} className="edge-flow" />}
               </g>
             ))}
-            <g ref={dot} className={`dot ${edge ? "on" : ""}`}>
-              <circle r="11" filter="url(#halo)" />
-              <circle r="4.5" className="dot-core" />
-            </g>
           </svg>
+          {!still && (
+            <FlowCanvas
+              engine={engine}
+              sample={sample}
+              onLeg={(id) => {
+                if (id === "q_w") shown.current++; // cada intento empieza al salir de la cola
+                if (id in EDGES) setEdge(id as EdgeId);
+              }}
+              onSettled={() => {
+                justCreated.id = ""; // al reabrir este evento ya no se repite la entrada
+                setEdge(null);
+              }}
+            />
+          )}
 
           <div className={cls("in")} style={at(90, 105)}>
             <span className="node-label">Webhook</span>
