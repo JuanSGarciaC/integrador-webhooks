@@ -1,8 +1,8 @@
 import { api } from "../api";
-import { ErrorNote, StatusBadge, useFetch } from "./shared";
+import { CountUp, ErrorNote, StatusBadge, useFetch } from "./shared";
 import type { Status } from "../types";
 
-const sec = (v: number | null) => (v === null ? "—" : `${v.toFixed(1)} s`);
+const sec = (v: number) => `${v.toFixed(1)} s`;
 
 export function Stats() {
   const { data: s, error } = useFetch(api.stats, [], 5000);
@@ -15,11 +15,11 @@ export function Stats() {
       <h2 id="t">Estadísticas</h2>
       <p className="lead">Calculadas en el servidor sobre los eventos guardados (<code>GET /api/stats</code>).</p>
       <div className="cards">
-        <div className="card"><span>Total</span><strong>{s.total}</strong></div>
-        <div className="card"><span>Entregados</span><strong>{s.delivered_ratio === null ? "—" : `${(s.delivered_ratio * 100).toFixed(1)} %`}</strong></div>
-        <div className="card"><span>Intentos promedio</span><strong>{s.avg_attempts ?? "—"}</strong></div>
-        <div className="card"><span>Entrega p50</span><strong>{sec(s.delivery_seconds.p50)}</strong></div>
-        <div className="card"><span>Entrega p95</span><strong>{sec(s.delivery_seconds.p95)}</strong></div>
+        <div className="card"><span>Total</span><strong><CountUp value={s.total} format={(n) => String(Math.round(n))} /></strong></div>
+        <div className="card"><span>Entregados</span><strong><CountUp value={s.delivered_ratio} format={(n) => `${(n * 100).toFixed(1)} %`} /></strong></div>
+        <div className="card"><span>Intentos promedio</span><strong><CountUp value={s.avg_attempts} format={(n) => String(Math.round(n * 100) / 100)} /></strong></div>
+        <div className="card"><span>Entrega p50</span><strong><CountUp value={s.delivery_seconds.p50} format={sec} /></strong></div>
+        <div className="card"><span>Entrega p95</span><strong><CountUp value={s.delivery_seconds.p95} format={sec} /></strong></div>
       </div>
       <h3>Por estado</h3>
       <div className="bar" role="img"
