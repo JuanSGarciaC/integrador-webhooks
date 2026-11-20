@@ -1,5 +1,5 @@
 import { api } from "../api";
-import { ErrorNote, StatusBadge, useFetch } from "./shared";
+import { CountUp, ErrorNote, StatusBadge, useFetch } from "./shared";
 import type { Status } from "../types";
 
 const sec = (v: number | null) => (v === null ? "—" : `${v.toFixed(1)} s`);
@@ -15,9 +15,9 @@ export function Stats() {
       <h2 id="t">Estadísticas</h2>
       <p className="lead">Calculadas en el servidor sobre los eventos guardados (<code>GET /api/stats</code>).</p>
       <div className="cards">
-        <div className="card"><span>Total</span><strong>{s.total}</strong></div>
-        <div className="card"><span>Entregados</span><strong>{s.delivered_ratio === null ? "—" : `${(s.delivered_ratio * 100).toFixed(1)} %`}</strong></div>
-        <div className="card"><span>Intentos promedio</span><strong>{s.avg_attempts ?? "—"}</strong></div>
+        <div className="card"><span>Total</span><strong><CountUp value={s.total} /></strong></div>
+        <div className="card"><span>Entregados</span><strong>{s.delivered_ratio === null ? "—" : <CountUp value={s.delivered_ratio * 100} format={(v) => `${v.toFixed(1)} %`} />}</strong></div>
+        <div className="card"><span>Intentos promedio</span><strong>{s.avg_attempts === null ? "—" : <CountUp value={s.avg_attempts} format={(v) => String(+v.toFixed(2))} />}</strong></div>
         <div className="card"><span>Entrega p50</span><strong>{sec(s.delivery_seconds.p50)}</strong></div>
         <div className="card"><span>Entrega p95</span><strong>{sec(s.delivery_seconds.p95)}</strong></div>
       </div>

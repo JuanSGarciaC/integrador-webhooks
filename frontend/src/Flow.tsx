@@ -4,7 +4,7 @@ import {
   attemptLegs, createSim, entryLegs, extend, parkedAt, processingLegs, QUEUE, spawn, statsLegs, waitLegs, WORKER,
   type Counts, type Sampler,
 } from "./flowSim";
-import { fmtSeconds } from "./pages/shared";
+import { CountUp, fmtSeconds } from "./pages/shared";
 import type { EventDetailData, Stats, Status } from "./types";
 
 const W = 1100;
@@ -237,7 +237,7 @@ export default function Flow({ event, stats, destination }: Props) {
 
           <div className={cls("in")} style={at(90, 105)}>
             <span className="node-label">Webhook</span>
-            {event ? <strong className="node-title">{event.event_type}</strong> : <strong className="node-count">{total}</strong>}
+            {event ? <strong className="node-title">{event.event_type}</strong> : <strong className="node-count"><CountUp value={total} /></strong>}
             <span className="node-sub">{event ? "firmado con HMAC" : "recibidos"}</span>
           </div>
 
@@ -251,7 +251,7 @@ export default function Flow({ event, stats, destination }: Props) {
             <span className="node-label">Cola</span>
             {event
               ? <strong className="node-title">{wait !== null ? `reintenta en ${fmtSeconds(wait)}` : status === "received" && !edge ? "en espera" : "outbox"}</strong>
-              : <strong className="node-count">{by ? by.received + by.retrying : 0}</strong>}
+              : <strong className="node-count"><CountUp value={by ? by.received + by.retrying : 0} /></strong>}
             <span className="node-sub">{event ? "la base de datos es la cola" : `${by?.retrying ?? 0} esperando reintento`}</span>
           </div>
 
@@ -259,13 +259,13 @@ export default function Flow({ event, stats, destination }: Props) {
             <span className="node-label">Worker</span>
             {event
               ? <strong className="node-title">{attempts === 1 ? "1 intento" : `${attempts} intentos`}</strong>
-              : <strong className="node-count">{by?.processing ?? 0}</strong>}
+              : <strong className="node-count"><CountUp value={by?.processing ?? 0} /></strong>}
             <span className="node-sub">{event || !stats?.avg_attempts ? "backoff exponencial y jitter" : `${stats.avg_attempts} intentos de media`}</span>
           </div>
 
           <div className={cls("d")} style={at(1000, 105)}>
             <span className="node-label">Destino</span>
-            {event ? <strong className="node-title">{destination}</strong> : <strong className="node-count">{by?.delivered ?? 0}</strong>}
+            {event ? <strong className="node-title">{destination}</strong> : <strong className="node-count"><CountUp value={by?.delivered ?? 0} /></strong>}
             <span className="node-sub">{event ? "Idempotency-Key" : `entregados · ${destination}`}</span>
           </div>
 
@@ -273,7 +273,7 @@ export default function Flow({ event, stats, destination }: Props) {
             <span className="node-label">Fallidos</span>
             {event
               ? <strong className="node-title">{status === "dead" && !edge ? "espera reproceso" : "sin fallo"}</strong>
-              : <strong className="node-count">{by?.dead ?? 0}</strong>}
+              : <strong className="node-count"><CountUp value={by?.dead ?? 0} /></strong>}
             <span className="node-sub">reproceso manual (admin)</span>
           </a>
         </div>

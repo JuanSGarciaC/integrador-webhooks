@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Status } from "../types";
 
 const LABEL: Record<Status, [string, string]> = {
@@ -56,4 +56,35 @@ export function ErrorNote({ message }: { message: string }) {
   // La pista del puerto solo tiene sentido si ni siquiera hubo respuesta del servidor.
   const hint = message === "Failed to fetch" ? " ¿Está corriendo la API en el puerto 8000?" : "";
   return <p role="alert" className="error">No se pudo cargar: {message}.{hint}</p>;
+}
+
+/** Número que sube hasta su valor (al aparecer o al cambiar). El lector de pantalla oye solo el valor final. */
+export function CountUp({ value, format = (n: number) => String(Math.round(n)) }: { value: number; format?: (n: number) => string }) {
+  const [shown, setShown] = useState(0);
+  const from = useRef(0);
+  useEffect(() => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      from.current = value;
+      return setShown(value);
+    }
+    const start = from.current;
+    let t0 = 0;
+    let raf = 0;
+    const tick = (now: number) => {
+      t0 ||= now;
+      const k = Math.min(1, (now - t0) / 600);
+      const v = start + (value - start) * (1 - (1 - k) ** 3);
+      from.current = v;
+      setShown(v);
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return (
+    <>
+      <span aria-hidden="true">{format(shown)}</span>
+      <span className="sr-only">{format(value)}</span>
+    </>
+  );
 }

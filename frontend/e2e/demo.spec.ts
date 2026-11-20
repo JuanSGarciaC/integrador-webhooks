@@ -18,6 +18,8 @@ test("simular recuperación muestra 3 intentos y Entregado", async ({ page }) =>
   const lienzo = page.getByRole("region", { name: "Recorrido de este evento" });
   await expect(lienzo).toContainText("Entregado al intento 3, tras 2 fallo(s).");
   await expect(lienzo.locator(".n-d")).toHaveClass(/lit/);
+  // La terminal termina con el mismo resultado que el historial.
+  await expect(page.getByRole("group", { name: "Registro del evento" })).toContainText("entregado en el intento 3");
 });
 
 test("reprocesar requiere admin y con token entrega el evento", async ({ page }) => {
@@ -49,4 +51,23 @@ test("el token no se guarda en localStorage", async ({ page }) => {
   await page.getByLabel("Token admin").fill("cualquiera");
   await page.getByRole("button", { name: "Guardar" }).click();
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain("cualquiera");
+});
+
+test("el lienzo anima con canvas y con reduced-motion no lo monta", async ({ page, browser }) => {
+  await page.goto("/");
+  await expect(page.locator("canvas.flow-canvas")).toHaveCount(1);
+
+  const quieta = await browser.newPage({ reducedMotion: "reduce" });
+  await quieta.goto("/");
+  await expect(quieta.getByRole("region", { name: "Recorrido de los eventos" })).toBeVisible();
+  await expect(quieta.locator(".n-d")).toBeVisible();
+  await expect(quieta.locator("canvas.flow-canvas")).toHaveCount(0);
+  await quieta.close();
+});
+
+test("el contador de estadísticas termina en el valor real", async ({ page }) => {
+  const { total } = await (await page.request.get("/api/stats")).json();
+  await page.goto("/#/stats");
+  const card = page.locator(".card").filter({ hasText: "Total" });
+  await expect(card.locator("strong [aria-hidden]")).toHaveText(String(total));
 });
