@@ -1,4 +1,4 @@
-// Capturas del panel para el README, contra la demo en marcha (contenedor local).
+// Capturas del panel para el README, contra la demo en marcha (contenedor local o E2E_BASE_URL).
 //   docker run -d -p 8080:8080 -e WEBHOOK_SECRET=s -e ADMIN_TOKEN=t -e DEMO_RATE_PER_MINUTE=1000 integrador-demo
 //   ADMIN_TOKEN=t OUT=../docs/screenshots node scripts/capture.mjs
 // Siembra datos ficticios con el simulador y fotografía cada pantalla.
@@ -41,31 +41,62 @@ for (const s of plan) ids.push([s, await simulate(s)]);
 await Promise.all(ids.map(([, id]) => waitFinal(id)));
 const recoverId = ids.find(([s]) => s === "recover")[1];
 
-const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1280, height: 860 }, deviceScaleFactor: 1.5 });
+// Edge, 1440×900 a escala 2 (nítidas en retina); cada captura se recorta hasta el final del contenido.
+const browser = await chromium.launch({ channel: "msedge" });
+try {
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
+const clip = async () => {
+  const bottom = await page.locator("main").evaluate((m) => m.getBoundingClientRect().bottom);
+  return { x: 0, y: 0, width: 1440, height: Math.ceil(bottom) + 28 }; // hasta el final del contenido, aunque pase del viewport
+};
 const shot = async (name, url, ready) => {
   await page.goto(url);
   await page.reload(); // el hash no recarga la app: así se aplica el sessionStorage actual
   await ready();
-  await page.waitForTimeout(600);
-  await page.screenshot({ path: `${OUT}/${name}.png` });
+  await page.waitForTimeout(1200); // deja terminar la cascada (A2) y el count-up (A7)
+  await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true, clip: await clip() });
 };
 await shot("01-simular", `${BASE}/#/simulate`, () => page.locator(".node-count").first().waitFor());
 // En curso: la cola espera el reintento. La espera lleva jitter y puede ser casi nula, así que se reintenta.
 for (let intento = 0; ; intento++) {
   await page.goto(`${BASE}/#/events/${await simulate("recover")}`);
-  const visto = await page.getByText(/reintenta en/).waitFor({ timeout: 4000 }).then(() => true, () => false);
-  if (visto) { await page.screenshot({ path: `${OUT}/02-en-vivo.png` }); break; }
+  // 10 s: cubre también el 2.º reintento, de espera más larga; se busca una cuenta atrás visible (no 0.0 s).
+  const visto = await page.getByText(/reintenta en (?:[1-9]|0\.[1-9])/).waitFor({ timeout: 10_000 }).then(() => true, () => false);
+  if (visto) { await page.screenshot({ path: `${OUT}/02-en-vivo.png`, fullPage: true, clip: await clip() }); break; }
   if (intento === 5) throw new Error("no se pudo capturar un evento esperando reintento");
 }
 await shot("03-detalle-entregado", `${BASE}/#/events/${recoverId}`, () => page.locator("ol.timeline > li").nth(2).waitFor());
 await shot("04-eventos", `${BASE}/#/events`, () => page.locator("tbody tr").first().waitFor());
 await shot("05-estadisticas", `${BASE}/#/stats`, () => page.locator(".card").first().waitFor());
-// Sin token (p. ej. contra la demo pública) se omite la captura como admin.
+// Sin token (p. ej. contra la demo pública) se omite la captura como admin. El token nunca se ve: solo «Rol: Admin».
 if (ADMIN) await page.evaluate((t) => sessionStorage.setItem("adminToken", t), ADMIN);
 if (ADMIN) await shot("06-fallidos-admin", `${BASE}/#/dead`, () => page.getByRole("button", { name: "Reprocesar" }).first().waitFor());
 await page.evaluate(() => sessionStorage.removeItem("adminToken"));
 await shot("07-fallidos-visitante", `${BASE}/#/dead`, () => page.getByRole("button", { name: "Requiere admin" }).first().waitFor());
+
+// Cómo funciona (C5): el paso 6 bajo el lienzo fijo, que ilumina el arco de reintento.
+await page.goto(`${BASE}/#/como-funciona`);
+await page.locator(".how-steps li").nth(5).evaluate((el) => {
+  const tapado = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--header-h"))
+    + document.querySelector(".how-visual").getBoundingClientRect().height;
+  window.scrollBy(0, el.getBoundingClientRect().top - tapado - 20);
+});
+await page.locator(".how-steps li").nth(5).and(page.locator('[aria-current="step"]')).waitFor();
+await page.waitForTimeout(500);
+const fin = await page.locator(".how-steps li").last().evaluate((el) => el.getBoundingClientRect().bottom);
+await page.screenshot({ path: `${OUT}/10-como-funciona.png`, clip: { x: 0, y: 0, width: 1440, height: Math.min(900, Math.ceil(fin) + 28) } });
+
+const movil = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+await movil.goto(`${BASE}/#/como-funciona`);
+await movil.locator(".how-steps li").first().waitFor();
+await movil.waitForTimeout(500);
+await movil.screenshot({ path: `${OUT}/11-como-funciona-movil.png` });
+
+const sinJs = await (await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, javaScriptEnabled: false })).newPage();
+await sinJs.goto(BASE);
+const aviso = await sinJs.locator("noscript main").boundingBox();
+await sinJs.screenshot({ path: `${OUT}/12-sin-javascript.png`,
+  clip: { x: aviso.x - 40, y: aviso.y - 40, width: aviso.width + 80, height: aviso.height + 80 } });
 
 if (TRIAJE_STACK && TRIAJE_URL) {
   const id = await simulate("issue", TRIAJE_STACK);
@@ -76,5 +107,7 @@ if (TRIAJE_STACK && TRIAJE_URL) {
   });
   await shot("09-issue-en-triaje", TRIAJE_URL, () => page.getByText("No puedo entrar a mi cuenta").first().waitFor());
 }
-await browser.close();
+} finally {
+  await browser.close(); // siempre, aunque falle una captura
+}
 console.log("capturas en", OUT);
