@@ -10,6 +10,15 @@
     <title>Integrador de webhooks</title>
   </head>
   <body>
+    <!-- Sin JS el panel (React) no se pinta: estilos inline para no depender del bundle. -->
+    <noscript>
+      <main style="max-width:640px;margin:15vh auto;padding:0 24px;font:16px/1.6 system-ui,sans-serif;color:#e9eef8;background:#060913">
+        <h1 style="margin:0 0 8px;font-size:26px">Integrador de webhooks</h1>
+        <p style="margin:0 0 12px;color:#93a1b8">Recibe webhooks de GitHub, comprueba su firma HMAC, los guarda y los entrega a otro servicio con reintentos (espera exponencial y jitter). Lo que no se puede entregar queda en una cola de fallidos para reprocesarlo.</p>
+        <p style="margin:0 0 12px">Este panel necesita JavaScript para funcionar. Actívalo y recarga la página.</p>
+        <p style="margin:0"><a style="color:#56d4ff" href="https://github.com/JuanSGarciaC/integrador-webhooks#readme">Leer el README del proyecto en GitHub</a></p>
+      </main>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

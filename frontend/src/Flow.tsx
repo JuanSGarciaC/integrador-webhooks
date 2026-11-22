@@ -25,21 +25,34 @@ const BEHIND: Record<EdgeId, NodeId[]> = {
 };
 const END: Partial<Record<Status, EdgeId>> = { delivered: "w_d", dead: "w_f", retrying: "w_q" };
 
+const explain = (title: string, sub: string) => (
+  <><strong className="node-title">{title}</strong><span className="node-sub">{sub}</span></>
+);
 const at = (x: number, y: number) => ({ left: `${(x / W) * 100}%`, top: `${(y / H) * 100}%` });
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
 /** El simulador anota aquí el evento que acaba de crear: su lienzo arranca desde el webhook. */
 export const justCreated = { id: "" };
 
+/** Explicación («Cómo funciona»): qué nodos y tramos se iluminan en el paso activo. Sin datos reales. */
+export interface Focus {
+  nodes: NodeId[];
+  edges: EdgeId[];
+  caption: string;
+}
+export type { EdgeId, NodeId };
+
 interface Props {
   /** Detalle: el lienzo sigue a este evento. */
   event?: EventDetailData;
   /** Resumen: conteos de GET /api/stats. */
   stats?: Stats;
+  /** Explicación: ilumina lo que indique el paso activo. */
+  focus?: Focus;
   destination: string;
 }
 
-export default function Flow({ event, stats, destination }: Props) {
+export default function Flow({ event, stats, focus, destination }: Props) {
   const paths = useRef<Partial<Record<EdgeId, SVGPathElement | null>>>({});
   const dot = useRef<SVGGElement>(null);
   const queue = useRef<EdgeId[]>([]);
@@ -151,6 +164,10 @@ export default function Flow({ event, stats, destination }: Props) {
         ? `El destino respondió ${code}: es un error permanente y no se reintenta. Un admin puede reprocesarlo.`
         : `Se agotaron los ${attempts} intentos. Un admin puede reprocesarlo.`,
     }[status!];
+  } else if (focus) {
+    focus.nodes.forEach((n) => lit.add(n));
+    focus.edges.forEach((id) => { flowing.add(id); share[id] = 0.3; });
+    caption = focus.caption;
   } else if (by && total > 0) {
     const inFlight = by.received + by.processing + by.retrying;
     share.in_api = share.api_q = share.q_w = 1;
@@ -175,7 +192,7 @@ export default function Flow({ event, stats, destination }: Props) {
     : null;
 
   return (
-    <section className="flow glow" aria-label={event ? "Recorrido de este evento" : "Recorrido de los eventos"}>
+    <section className="flow glow" aria-label={event ? "Recorrido de este evento" : focus ? "Recorrido explicado" : "Recorrido de los eventos"}>
       {/* En pantalla estrecha el lienzo se desplaza: enfocable para poder hacerlo con el teclado. */}
       <div className="flow-scroll" tabIndex={0} role="group" aria-label="Lienzo, desplazable en horizontal">
         <div className="flow-stage">
@@ -205,8 +222,10 @@ export default function Flow({ event, stats, destination }: Props) {
 
           <div className={cls("in")} style={at(90, 105)}>
             <span className="node-label">Webhook</span>
-            {event ? <strong className="node-title">{event.event_type}</strong> : <strong className="node-count">{total}</strong>}
-            <span className="node-sub">{event ? "firmado con HMAC" : "recibidos"}</span>
+            {focus ? explain("POST firmado", "X-Hub-Signature-256") : <>
+              {event ? <strong className="node-title">{event.event_type}</strong> : <strong className="node-count">{total}</strong>}
+              <span className="node-sub">{event ? "firmado con HMAC" : "recibidos"}</span>
+            </>}
           </div>
 
           <div className={cls("api")} style={at(300, 105)}>
@@ -217,36 +236,43 @@ export default function Flow({ event, stats, destination }: Props) {
 
           <div className={`${cls("q")} ${waiting && !edge ? "waiting" : ""}`} style={at(520, 105)}>
             <span className="node-label">Cola</span>
-            {event
-              ? <strong className="node-title">{wait !== null ? `reintenta en ${fmtSeconds(wait)}` : status === "received" && !edge ? "en espera" : "outbox"}</strong>
-              : <strong className="node-count">{by ? by.received + by.retrying : 0}</strong>}
-            <span className="node-sub">{event ? "la base de datos es la cola" : `${by?.retrying ?? 0} esperando reintento`}</span>
+            {focus ? explain("outbox", "la base de datos es la cola") : <>
+              {event
+                ? <strong className="node-title">{wait !== null ? `reintenta en ${fmtSeconds(wait)}` : status === "received" && !edge ? "en espera" : "outbox"}</strong>
+                : <strong className="node-count">{by ? by.received + by.retrying : 0}</strong>}
+              <span className="node-sub">{event ? "la base de datos es la cola" : `${by?.retrying ?? 0} esperando reintento`}</span>
+            </>}
           </div>
 
           <div className={cls("w")} style={at(760, 105)}>
             <span className="node-label">Worker</span>
-            {event
-              ? <strong className="node-title">{attempts === 1 ? "1 intento" : `${attempts} intentos`}</strong>
-              : <strong className="node-count">{by?.processing ?? 0}</strong>}
-            <span className="node-sub">{event || !stats?.avg_attempts ? "backoff exponencial y jitter" : `${stats.avg_attempts} intentos de media`}</span>
+            {focus ? explain("hasta 6 intentos", "backoff exponencial y jitter") : <>
+              {event
+                ? <strong className="node-title">{attempts === 1 ? "1 intento" : `${attempts} intentos`}</strong>
+                : <strong className="node-count">{by?.processing ?? 0}</strong>}
+              <span className="node-sub">{event || !stats?.avg_attempts ? "backoff exponencial y jitter" : `${stats.avg_attempts} intentos de media`}</span>
+            </>}
           </div>
 
           <div className={cls("d")} style={at(1000, 105)}>
             <span className="node-label">Destino</span>
-            {event ? <strong className="node-title">{destination}</strong> : <strong className="node-count">{by?.delivered ?? 0}</strong>}
-            <span className="node-sub">{event ? "Idempotency-Key" : `entregados · ${destination}`}</span>
+            {focus ? explain(destination, "Idempotency-Key") : <>
+              {event ? <strong className="node-title">{destination}</strong> : <strong className="node-count">{by?.delivered ?? 0}</strong>}
+              <span className="node-sub">{event ? "Idempotency-Key" : `entregados · ${destination}`}</span>
+            </>}
           </div>
 
           <a className={cls("f")} style={at(1000, 255)} href="#/dead">
             <span className="node-label">Fallidos</span>
-            {event
+            {focus ? <strong className="node-title">cola de fallidos</strong> : event
               ? <strong className="node-title">{status === "dead" && !edge ? "espera reproceso" : "sin fallo"}</strong>
               : <strong className="node-count">{by?.dead ?? 0}</strong>}
             <span className="node-sub">reproceso manual (admin)</span>
           </a>
         </div>
       </div>
-      <p className="flow-caption" aria-live="polite">{caption}</p>
+      {/* En la explicación el texto del paso ya está en la página: el pie no se anuncia otra vez. */}
+      <p className="flow-caption" aria-live={focus ? "off" : "polite"}>{caption}</p>
     </section>
   );
 }

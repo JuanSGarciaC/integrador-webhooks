@@ -31,8 +31,8 @@ header { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; g
   font-weight: 600; background: var(--accent-soft); color: var(--accent); }
 .pill.live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 1.2s infinite; }
 @keyframes pulse { 50% { opacity: .25; } }
-nav { display: flex; gap: 4px; }
-nav a { padding: 6px 12px; border-radius: 8px; text-decoration: none; color: var(--text); font-weight: 500; }
+nav { display: flex; flex-wrap: wrap; gap: 4px; }
+nav a { white-space: nowrap; padding: 6px 12px; border-radius: 8px; text-decoration: none; color: var(--text); font-weight: 500; }
 nav a:hover { background: var(--surface-2); }
 nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
 .token { display: flex; gap: 8px; align-items: center; margin-left: auto; }
@@ -79,7 +79,10 @@ pre { background: var(--surface-2); border: 1px solid var(--border); border-radi
 
 /* Simular */
 .scenarios { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
-.scenarios li { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
+.scenarios li { display: flex; flex-direction: column; gap: 10px; padding: 16px;
+  /* A2: entran en cascada una sola vez, al montarse (--i lo pone Simulate.tsx) */
+  animation: rise .5s cubic-bezier(.2, .7, .3, 1) both; animation-delay: calc(var(--i, 0) * 70ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } }
 .scenarios button { width: 100%; text-align: left; font-weight: 600; background: linear-gradient(90deg, var(--accent), var(--violet)); color: var(--bg); border-color: transparent; }
 .scenarios button:hover:not(:disabled) { filter: brightness(1.12); }
 .scenarios p { margin: 0; color: var(--muted); font-size: 13px; }
@@ -175,4 +178,24 @@ a.node:hover { border-color: var(--c); }
 .flow-caption { margin: 0; padding: .7rem 1.25rem; border-top: 1px solid var(--border); background: rgb(6 9 19 / .6); font-size: .92rem;
   color: var(--muted); min-height: 2.9rem; }
 
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+/* Cómo funciona (C5): lienzo fijo arriba, pasos que pasan por debajo */
+.how-visual { position: static; z-index: 2; }
+.how-visual .flow { margin-bottom: 16px; }
+.how-steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+.how-steps li { padding: 16px 18px; transition: opacity .35s, border-color .35s; }
+.how-steps h3 { margin: 0 0 6px; }
+.how-steps p { margin: 0; color: var(--muted); max-width: 72ch; }
+.how-steps pre { margin: 10px 0 0; }
+.how-steps li[aria-current="step"] { border-color: var(--accent); }
+.how-cta { margin: 20px 0 0; font-weight: 600; }
+/* Solo con pantalla ancha y alta: en móvil o en ventanas bajas el lienzo fijo taparía el texto. */
+@media (min-width: 900px) and (min-height: 760px) {
+  .how-visual { position: sticky; top: var(--header-h, 64px); background: var(--bg); padding-top: 8px; }
+  .how-steps { padding-bottom: 40vh; } /* deja que el último paso llegue a la línea de lectura */
+  .how-steps li:not([aria-current="step"]) { opacity: .45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+  .how-steps li:not([aria-current="step"]) { opacity: 1; }
+}

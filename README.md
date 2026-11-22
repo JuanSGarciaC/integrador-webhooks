@@ -12,7 +12,7 @@ Servicio que **recibe webhooks de GitHub**, comprueba que son auténticos, **los
 
 ![Flujo en vivo: se simula un webhook, falla dos veces con 503 y se entrega al tercer intento](docs/screenshots/demo-flujo.gif)
 
-*Grabado el 2026-11-11 contra el contenedor local: «Falla 2 veces y se recupera» → dos `503` → espera con backoff y jitter → `200` y Entregado. Datos ficticios contra el destino simulado.*
+*Grabado a ritmo real el 2026-11-21 contra la demo local: «Falla 2 veces y se recupera» → dos `503` → espera con backoff y jitter → `200` y Entregado. Datos ficticios contra el destino simulado.*
 
 ## Demo en vivo
 
@@ -21,9 +21,10 @@ Servicio que **recibe webhooks de GitHub**, comprueba que son auténticos, **los
 La demo pública corre en un solo contenedor (API + worker + destino simulado + panel) en Render, con el blueprint [`render.yaml`](render.yaml).
 
 Qué probar en la demo:
-1. **Simular**: elige un escenario (éxito, falla 2 veces y se recupera, `429` con `Retry-After`, timeout, rechazado `4xx`). El evento es ficticio, va firmado con HMAC y entra por el mismo camino que un webhook real de GitHub.
-2. **Detalle**: el evento se actualiza en vivo y muestra cada intento con su código HTTP y duración.
-3. **Fallidos**: el reproceso está protegido. Un visitante ve «Requiere admin» y la API responde `401`. Con el token admin, el evento rechazado se reprocesa y se entrega.
+1. **Cómo funciona**: baja por los 8 pasos del recorrido; el lienzo fijo de arriba ilumina la parte que se explica.
+2. **Simular**: elige un escenario (éxito, falla 2 veces y se recupera, `429` con `Retry-After`, timeout, rechazado `4xx`). El evento es ficticio, va firmado con HMAC y entra por el mismo camino que un webhook real de GitHub.
+3. **Detalle**: el evento se actualiza en vivo y muestra cada intento con su código HTTP y duración.
+4. **Fallidos**: el reproceso está protegido. Un visitante ve «Requiere admin» y la API responde `401`. Con el token admin, el evento rechazado se reprocesa y se entrega.
 
 Límites de la demo: los datos son ficticios y se borran cuando el servicio se duerme (plan gratuito, tras 15 min sin tráfico). El primer acceso tarda alrededor de 1 minuto en despertar. Cada IP puede hacer 10 simulaciones por minuto y se guardan como máximo 500 eventos (se purgan los terminados más antiguos).
 
@@ -67,7 +68,33 @@ En el detalle, el lienzo sigue a ese evento: un punto recorre cada tramo, el Wor
 | **Fallidos como visitante**: reprocesar bloqueado | **Fallidos como admin**: reprocesar habilitado |
 | ![Fallidos sin token: botón Requiere admin deshabilitado](docs/screenshots/07-fallidos-visitante.png) | ![Fallidos con token admin: botón Reprocesar](docs/screenshots/06-fallidos-admin.png) |
 
-Sin librerías de UI. Tema oscuro. El estado se comunica con icono y texto, no solo con color; el foco es visible y todo el movimiento se apaga con `prefers-reduced-motion`. El detalle muestra también «Enviado al destino»: el JSON que sale hacia el destino, junto al payload original. Capturas y GIF tomados el 2026-11-11 contra el contenedor local con `frontend/scripts/capture.mjs`, `frames.mjs` y `gif.py` (datos sembrados con el simulador).
+Sin librerías de UI. Tema oscuro. El estado se comunica con icono y texto, no solo con color; el foco es visible y todo el movimiento se apaga con `prefers-reduced-motion`. El detalle muestra también «Enviado al destino»: el JSON que sale hacia el destino, junto al payload original.
+
+### Vista «Cómo funciona» y efectos
+
+Una vista que explica el recorrido de un webhook en 8 pasos (firma HMAC, `202`, cola, worker, entrega idempotente, reintentos, Fallidos y reproceso). Mientras bajas, el **mismo lienzo del panel queda fijo** bajo la cabecera e ilumina los nodos y tramos del paso que estás leyendo. La petición firmada y la respuesta `202` aparecen como pasos con su bloque de código.
+
+![Cómo funciona: el lienzo fijo ilumina cada paso al bajar; antes, las tarjetas de Simular entran en cascada y al final las cifras de Estadísticas cuentan hasta su valor](docs/screenshots/como-funciona.gif)
+
+| Escritorio: el paso 6 ilumina el arco de reintento | Móvil (390 px): sin lienzo fijo |
+|---|---|
+| ![Cómo funciona en escritorio con el paso 6 activo](docs/screenshots/10-como-funciona.png) | ![Cómo funciona en móvil: menú en dos filas y lienzo estático](docs/screenshots/11-como-funciona-movil.png) |
+
+| Efecto | Dónde | Cómo |
+|---|---|---|
+| Scrollytelling con visual fijo (efecto principal) | Cómo funciona | `position: sticky` y un escucha de scroll pasivo que lee la posición como mucho una vez por fotograma (`requestAnimationFrame`); el lienzo recibe qué iluminar por la prop `focus` de `Flow.tsx` |
+| Entrada en cascada | Tarjetas de Simular | Solo CSS: cada tarjeta se retrasa `--i × 70 ms` y anima `transform` y `opacity` una sola vez |
+| Cifras que cuentan | Estadísticas | `CountUp` cuenta de 0 al valor real solo en la primera carga; los refrescos cada 5 s cambian el número sin animar. El lector de pantalla oye solo el valor final |
+
+Sin dependencias nuevas. Accesibilidad y rendimiento:
+
+- Con `prefers-reduced-motion` no hay animaciones y ningún paso queda atenuado.
+- En pantallas de menos de 900×760 el lienzo no queda fijo, para no tapar el texto.
+- Sin JavaScript, un `<noscript>` explica qué es el proyecto y enlaza a este README.
+
+![Página sin JavaScript: qué es el proyecto, aviso y enlace al README](docs/screenshots/12-sin-javascript.png)
+
+Capturas tomadas el 2026-11-21 con Edge a 1440×900 y escala 2, contra la demo local con datos ficticios sembrados por el simulador: `frontend/scripts/capture.mjs` y `png.py`, que optimiza sin bajar la resolución. Los GIF se grabaron a ritmo real con el screencast de Edge (`frames.mjs`) y se unieron a 12,5 fps (`gif.py`). Las dos capturas de la conexión con triaje son del 2026-11-11; en la del integrador se ve el menú anterior, sin «Cómo funciona».
 
 ## Conexión con triaje-solicitudes
 
@@ -125,6 +152,17 @@ docker run --rm -p 8080:8080 -e WEBHOOK_SECRET=algo-secreto -e ADMIN_TOKEN=otro-
 # panel en http://localhost:8080 ; sin WEBHOOK_SECRET o ADMIN_TOKEN el contenedor no arranca
 ```
 
+La misma demo sin Docker (panel compilado servido por la API; los secretos salen de `backend\.env`):
+
+```powershell
+cd frontend; npm run build; cd ..\backend
+$env:DEMO_MODE="true"; $env:STATIC_DIR="..\frontend\dist"                # en cada terminal
+.venv\Scripts\python -m uvicorn mock_downstream.main:app --port 9000    # terminal 1: destino simulado
+.venv\Scripts\python -m uvicorn app.main:app --port 8080                # terminal 2: API + panel
+.venv\Scripts\python -m app.worker                                      # terminal 3: worker
+# panel en http://localhost:8080 ; la vista nueva en http://localhost:8080/#/como-funciona
+```
+
 ## API
 
 | Método y ruta | Qué hace | Respuestas |
@@ -164,13 +202,13 @@ Valores por defecto: base 2 s, factor 2, tope 5 min, jitter completo. Viven en `
 
 ## Pruebas y cobertura
 
-| Capa | Qué | Reloj | Resultado medido (2026-11-11, local) |
+| Capa | Qué | Reloj | Resultado medido (local) |
 |---|---|---|---|
-| Unitarias e integración | `backend/tests/` con `pytest` | virtual (`FakeClock`, jitter fijo, sin `sleep`) | **115 pruebas** y **94 % de cobertura de línea** |
-| Contrato | Newman, `docs/postman/` y `--check` de `openapi.json` | real | 13 peticiones, 13 aserciones, 0 fallos |
-| E2E API | `backend/tests_e2e/` contra el contenedor | **real** | 9 pruebas pasan |
-| E2E panel | Playwright, `frontend/e2e/` contra el contenedor | **real** | 3 pruebas pasan |
-| E2E conexión | `tests_e2e/test_triaje_e2e.py` contra integrador + triaje (`docker-compose.triaje.yml`) | **real** | 2 pruebas pasan |
+| Unitarias e integración | `backend/tests/` con `pytest` | virtual (`FakeClock`, jitter fijo, sin `sleep`) | **115 pruebas** y **94 % de cobertura de línea** (2026-11-21) |
+| Contrato | Newman, `docs/postman/` y `--check` de `openapi.json` | real | 13 peticiones, 13 aserciones, 0 fallos (2026-11-11) |
+| E2E API | `backend/tests_e2e/` contra el contenedor | **real** | 9 pruebas pasan (2026-11-11) |
+| E2E panel | Playwright, `frontend/e2e/`: flujo, reproceso y token (3) y efectos (10) | **real**; el count-up usa reloj inyectado (`page.clock`) | **13 pruebas** pasan (2026-11-21, contra la demo local sin contenedor) |
+| E2E conexión | `tests_e2e/test_triaje_e2e.py` contra integrador + triaje (`docker-compose.triaje.yml`) | **real** | 2 pruebas pasan (2026-11-11) |
 
 - Sin prueba unitaria: `app/main.py` y el bucle `run_forever` del worker. Los cubren los E2E, que arrancan la imagen real.
 - CI (GitHub Actions) tiene cinco jobs: `backend`, `contract`, `frontend` (build), `e2e` y `e2e-triaje`. El job `e2e` construye la **misma imagen que se despliega** y ejecuta pytest y Playwright contra ella; `e2e-triaje` levanta integrador y triaje juntos y comprueba que un issue llega clasificado y que un reenvío no lo duplica. Los cinco jobs pasaron el 2026-11-12 ([run](https://github.com/JuanSGarciaC/integrador-webhooks/actions/runs/43261756355)).
@@ -181,6 +219,15 @@ cd backend; .venv\Scripts\python -m pytest --cov=app                            
 docker run -d -p 8080:8080 -e WEBHOOK_SECRET=s -e ADMIN_TOKEN=t -e DEMO_RATE_PER_MINUTE=1000 integrador-demo
 $env:WEBHOOK_SECRET="s"; $env:ADMIN_TOKEN="t"; .venv\Scripts\python -m pytest tests_e2e   # E2E API
 cd ..\frontend; npx playwright install chromium; npm run e2e                                # E2E panel
+```
+
+Capturas y GIF del README, contra la demo en marcha (usan Edge y Pillow):
+
+```powershell
+$env:E2E_BASE_URL="http://127.0.0.1:8080"; $env:OUT="..\docs\screenshots"; node scripts\capture.mjs   # desde frontend; ADMIN_TOKEN opcional
+python scripts\png.py ..\docs\screenshots
+$env:ESCENA="como-funciona"; $env:OUT="$env:TEMP\fotogramas"; node scripts\frames.mjs                  # ESCENA=flujo para demo-flujo.gif
+python scripts\gif.py "$env:TEMP\fotogramas" ..\docs\screenshots\como-funciona.gif
 ```
 
 ## Medición con fallos inyectados

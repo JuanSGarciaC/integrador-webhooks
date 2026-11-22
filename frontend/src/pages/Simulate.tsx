@@ -48,8 +48,8 @@ export function Simulate({ destination, triaje }: { destination: string; triaje:
       <Flow stats={stats ?? undefined} destination={destination} />
       {error && <p role="alert" className="error">{error}</p>}
       <ul className="scenarios">
-        {(triaje ? ISSUE : SCENARIOS).map(([key, label, help, codes, final]) => (
-          <li key={key} className="card">
+        {(triaje ? ISSUE : SCENARIOS).map(([key, label, help, codes, final], i) => (
+          <li key={key} className="card" style={{ "--i": i } as React.CSSProperties}>
             <button onClick={() => run(key)} disabled={busy} aria-describedby={`h-${key}`}>{label}</button>
             <p id={`h-${key}`}>{help}</p>
             <div className="expect">

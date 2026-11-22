@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Status } from "../types";
 
 const LABEL: Record<Status, [string, string]> = {
@@ -50,6 +50,43 @@ export function useFetch<T>(load: () => Promise<T>, deps: unknown[], every = 0) 
     return () => clearInterval(t);
   }, [run, every]);
   return { data, error, reload: run };
+}
+
+/**
+ * A7: la cifra cuenta desde 0 solo la primera vez que llega; los refrescos posteriores la cambian sin animar.
+ * El lector de pantalla oye solo el valor real (sr-only), no los números intermedios.
+ */
+export function CountUp({ value, format }: { value: number | null; format: (n: number) => string }) {
+  const [shown, setShown] = useState<number | null>(null);
+  const done = useRef(false);
+  useEffect(() => {
+    if (value === null) return;
+    if (done.current || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      done.current = true;
+      return setShown(value);
+    }
+    done.current = true;
+    setShown(0);
+    const t0 = performance.now();
+    let finished = false;
+    let raf = requestAnimationFrame(function tick(t) {
+      const f = Math.min(1, Math.max(0, t - t0) / 800);
+      setShown(f < 1 ? value * (1 - (1 - f) ** 3) : value); // frena al final (ease-out)
+      if (f < 1) raf = requestAnimationFrame(tick);
+      else finished = true;
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      if (!finished) done.current = false; // interrumpida (p. ej. StrictMode): la siguiente pasada vuelve a contar
+    };
+  }, [value]);
+  if (value === null) return <>—</>;
+  return (
+    <>
+      <span aria-hidden="true">{format(shown ?? value)}</span>
+      <span className="sr-only">{format(value)}</span>
+    </>
+  );
 }
 
 export function ErrorNote({ message }: { message: string }) {
